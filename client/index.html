@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Family Archive</title>
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+
+  <header class="app-header">
+    <div class="app-header-inner">
+      <h1 class="app-title">Family Archive</h1>
+      <nav class="tab-nav" role="tablist">
+        <button class="tab-btn active" data-tab="timeline" role="tab" aria-selected="true">Timeline</button>
+        <button class="tab-btn" data-tab="dashboard" role="tab" aria-selected="false">Dashboard</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="app-main">
+
+    <!-- ── Timeline tab ── -->
+    <section id="tab-timeline" class="tab-panel active" role="tabpanel">
+      <div class="timeline-filters">
+        <input
+          type="search"
+          id="search-input"
+          placeholder="Search people, places, events…"
+          class="search-input"
+          autocomplete="off"
+        >
+        <div class="filter-row">
+          <select id="filter-person" class="filter-select">
+            <option value="">All people</option>
+          </select>
+          <select id="filter-event" class="filter-select">
+            <option value="">All events</option>
+          </select>
+          <input type="number" id="filter-from" placeholder="From" class="filter-year" min="1900" max="2099">
+          <input type="number" id="filter-to"   placeholder="To"   class="filter-year" min="1900" max="2099">
+        </div>
+        <div id="filter-status" class="filter-status hidden">
+          <span id="filter-status-text"></span>
+          <button id="clear-filters" class="clear-filters-btn">Clear filters</button>
+        </div>
+      </div>
+      <div id="timeline-content" class="timeline-content">
+        <div class="state-loading">Loading memories…</div>
+      </div>
+    </section>
+
+    <!-- ── Dashboard tab ── -->
+    <section id="tab-dashboard" class="tab-panel" role="tabpanel">
+      <div id="dashboard-content" class="dashboard-content">
+        <div class="state-loading">Loading…</div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── Asset detail overlay ── -->
+  <div id="asset-overlay" class="overlay hidden" role="dialog" aria-modal="true">
+    <div class="overlay-backdrop" id="overlay-backdrop"></div>
+    <div class="overlay-panel">
+      <button class="overlay-close" id="overlay-close" aria-label="Close">×</button>
+      <button class="overlay-nav overlay-prev" id="overlay-prev" aria-label="Previous">&#8249;</button>
+      <button class="overlay-nav overlay-next" id="overlay-next" aria-label="Next">&#8250;</button>
+      <div id="overlay-content" class="overlay-content"></div>
+    </div>
+  </div>
+
+  <!-- ── Upload modal ── -->
+  <div id="upload-modal" class="overlay hidden" role="dialog" aria-modal="true">
+    <div class="overlay-backdrop" id="upload-backdrop"></div>
+    <div class="upload-panel">
+      <button class="overlay-close" id="upload-close" aria-label="Close">×</button>
+      <div id="upload-content"></div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>
