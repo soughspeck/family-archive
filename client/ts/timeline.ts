@@ -27,7 +27,6 @@ export async function init(): Promise<void> {
   app.innerHTML = `
     <div class="timeline-filters">
       <div class="filter-row">
-        <input type="text" class="search-input" id="search-input" placeholder="Search…">
         <div class="filter-chip-select" id="filter-person-wrap">
           <div class="filter-chip-chips" id="filter-person-chips"></div>
           <input type="text" class="filter-chip-input" id="filter-person-input" placeholder="People" autocomplete="off">
@@ -40,6 +39,9 @@ export async function init(): Promise<void> {
         </div>
         <input type="number" class="filter-year" id="filter-from" placeholder="From year">
         <input type="number" class="filter-year" id="filter-to" placeholder="To year">
+        <div class="search-input-wrap"><svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+<path d="M22.2069 20.7929L16.3141 14.8999C17.5655 13.2888 18.1557 11.2614 17.9647 9.23038C17.7737 7.19937 16.8158 5.31752 15.286 3.96799C13.7562 2.61845 11.7696 1.90269 9.73062 1.96645C7.69165 2.0302 5.75363 2.86868 4.31115 4.31115C2.86868 5.75363 2.0302 7.69165 1.96645 9.73062C1.90269 11.7696 2.61845 13.7562 3.96799 15.286C5.31752 16.8158 7.19937 17.7737 9.23038 17.9647C11.2614 18.1557 13.2888 17.5655 14.8999 16.3141L20.7929 22.2069L22.2069 20.7929ZM9.99994 15.9999C8.81325 15.9999 7.65322 15.648 6.66652 14.9888C5.67983 14.3295 4.91079 13.3924 4.45667 12.296C4.00254 11.1997 3.88372 9.99329 4.11523 8.8294C4.34674 7.66551 4.91819 6.59642 5.7573 5.7573C6.59642 4.91819 7.66551 4.34674 8.8294 4.11523C9.99329 3.88372 11.1997 4.00254 12.296 4.45667C13.3924 4.91079 14.3295 5.67983 14.9888 6.66652C15.648 7.65322 15.9999 8.81325 15.9999 9.99994C15.9981 11.5907 15.3654 13.1158 14.2406 14.2406C13.1158 15.3654 11.5907 15.9981 9.99994 15.9999Z" fill="currentColor"/>
+</svg><input type="text" class="search-input" id="search-input" placeholder="Search…"></div>
         <a class="filter-clear hidden" id="clear-filters" href="#">Clear filters</a>
       </div>
       <div class="filter-status" id="filter-status"></div>
@@ -372,11 +374,6 @@ function renderAssetDetail(asset: Asset, full: Asset | null): string {
        </div>`
     : ''
 
-  const precisionOptions = ['exact', 'day', 'month', 'year', 'circa', 'unknown']
-  const precisionSelect = precisionOptions
-    .map(p => `<option value="${p}"${asset.date_precision === p ? ' selected' : ''}>${precisionLabel(p)}</option>`)
-    .join('')
-
   const hasDate = asset.taken_at && asset.date_precision !== 'unknown'
   const dateDisplay = hasDate
     ? `<div id="date-display">
@@ -395,12 +392,19 @@ function renderAssetDetail(asset: Asset, full: Asset | null): string {
           <div id="date-section">
             ${dateDisplay}
             <div class="date-editor hidden" id="date-editor">
-              <input type="text" class="date-editor-input" id="date-input"
-                value="${escHtml(asset.taken_at || '')}"
-                placeholder="e.g. 1987, 1987-06, 1987-06-14">
-              <select class="date-editor-precision" id="date-precision">${precisionSelect}</select>
-              <button class="btn btn-small btn-primary" id="date-save">Save</button>
-              <button class="btn btn-small btn-ghost" id="date-cancel">Cancel</button>
+              <select class="date-editor-select" id="date-precision">
+                <option value="" disabled selected>Type…</option>
+                <option value="exact">Exact timestamp</option>
+                <option value="day">Day</option>
+                <option value="month">Month</option>
+                <option value="year">Year</option>
+                <option value="circa">Approximate decade</option>
+              </select>
+              <div id="date-input-slot"></div>
+              <div class="date-editor-actions">
+                <button class="btn btn-small btn-primary hidden" id="date-save">Save</button>
+                <button class="btn btn-small btn-ghost" id="date-cancel">Cancel</button>
+              </div>
             </div>
           </div>
         </div>
@@ -451,14 +455,88 @@ async function bindOverlayTagging(asset: Asset): Promise<void> {
   // ── Date editing ──
   const dateSection = document.getElementById('date-section')!
   const dateEditor = document.getElementById('date-editor')!
-  const dateInput = document.getElementById('date-input') as HTMLInputElement
   const datePrecision = document.getElementById('date-precision') as HTMLSelectElement
+  const dateInputSlot = document.getElementById('date-input-slot')!
+  const dateSave = document.getElementById('date-save') as HTMLButtonElement
+
+  const decades = ['1900','1910','1920','1930','1940','1950','1960','1970','1980','1990','2000','2010','2020']
+
+  function renderDateInput(precision: string): void {
+    dateSave.classList.remove('hidden')
+    switch (precision) {
+      case 'exact':
+        dateInputSlot.innerHTML = `<input type="datetime-local" class="date-editor-input" id="date-value">`
+        break
+      case 'day':
+        dateInputSlot.innerHTML = `<input type="date" class="date-editor-input" id="date-value">`
+        break
+      case 'month':
+        dateInputSlot.innerHTML = `<input type="month" class="date-editor-input" id="date-value">`
+        break
+      case 'year':
+        dateInputSlot.innerHTML = `<input type="number" class="date-editor-input" id="date-value" min="1800" max="2099" placeholder="e.g. 1987">`
+        break
+      case 'circa':
+        dateInputSlot.innerHTML = `<select class="date-editor-input" id="date-value">
+          <option value="" disabled selected>Decade…</option>
+          ${decades.map(d => `<option value="${d}">${d}s</option>`).join('')}
+        </select>`
+        break
+      default:
+        dateInputSlot.innerHTML = ''
+        dateSave.classList.add('hidden')
+        return
+    }
+    // Pre-fill with existing value if precision matches
+    if (asset.taken_at && asset.date_precision === precision) {
+      const el = document.getElementById('date-value') as HTMLInputElement | HTMLSelectElement
+      if (precision === 'exact') {
+        // datetime-local expects "YYYY-MM-DDTHH:mm"
+        el.value = asset.taken_at.replace(' ', 'T').substring(0, 16)
+      } else if (precision === 'circa') {
+        // circa stores decade start year like "1960"
+        const decadeStart = asset.taken_at.substring(0, 3) + '0'
+        el.value = decadeStart
+      } else {
+        el.value = asset.taken_at
+      }
+    }
+  }
+
+  function readDateValue(): string | null {
+    const el = document.getElementById('date-value') as HTMLInputElement | HTMLSelectElement | null
+    if (!el || !el.value) return null
+    const precision = datePrecision.value
+    switch (precision) {
+      case 'exact':
+        // datetime-local gives "YYYY-MM-DDTHH:mm", store as "YYYY-MM-DD HH:mm:00"
+        return el.value.replace('T', ' ') + ':00'
+      case 'day':
+        return el.value // "YYYY-MM-DD"
+      case 'month':
+        return el.value // "YYYY-MM"
+      case 'year':
+        return el.value // "YYYY"
+      case 'circa':
+        return el.value // decade start year "1960"
+      default:
+        return null
+    }
+  }
 
   function showEditor(): void {
     document.getElementById('date-display')?.classList.add('hidden')
     document.getElementById('date-add-btn')?.classList.add('hidden')
     dateEditor.classList.remove('hidden')
-    dateInput.focus()
+    // If editing existing date, pre-select precision and render input
+    if (asset.taken_at && asset.date_precision && asset.date_precision !== 'unknown') {
+      datePrecision.value = asset.date_precision
+      renderDateInput(asset.date_precision)
+    } else {
+      datePrecision.value = ''
+      dateInputSlot.innerHTML = ''
+      dateSave.classList.add('hidden')
+    }
   }
 
   function rebuildDateDisplay(): void {
@@ -501,12 +579,14 @@ async function bindOverlayTagging(asset: Asset): Promise<void> {
         await api.assets.update(asset.id, { taken_at: null, date_precision: 'unknown' })
         asset.taken_at = null
         asset.date_precision = 'unknown'
-        dateInput.value = ''
-        datePrecision.value = 'unknown'
         rebuildDateDisplay()
       } catch { alert('Failed to remove date.') }
     })
   }
+
+  datePrecision.addEventListener('change', () => {
+    renderDateInput(datePrecision.value)
+  })
 
   document.getElementById('date-add-btn')?.addEventListener('click', showEditor)
   document.getElementById('date-display')?.addEventListener('click', (e) => {
@@ -514,21 +594,21 @@ async function bindOverlayTagging(asset: Asset): Promise<void> {
   })
   bindDateRemove()
 
-  document.getElementById('date-cancel')?.addEventListener('click', () => {
-    dateInput.value = asset.taken_at || ''
-    datePrecision.value = asset.date_precision || 'unknown'
-    rebuildDateDisplay()
-  })
+  document.getElementById('date-cancel')?.addEventListener('click', () => rebuildDateDisplay())
 
-  document.getElementById('date-save')?.addEventListener('click', async () => {
-    const taken_at = dateInput.value.trim() || null
+  dateSave.addEventListener('click', async () => {
     const date_precision = datePrecision.value
+    const taken_at = readDateValue()
+    if (!taken_at && date_precision !== 'unknown') {
+      showToast('Please select a date')
+      return
+    }
     try {
       await api.assets.update(asset.id, { taken_at, date_precision })
       asset.taken_at = taken_at
       asset.date_precision = date_precision
       rebuildDateDisplay()
-      showToast('Date added')
+      showToast('Date saved')
     } catch {
       alert('Failed to save date.')
     }
