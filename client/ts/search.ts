@@ -22,54 +22,28 @@ export function invalidateEventsCache(): void { cachedEvents = null }
 
 export interface FilterState {
   q: string
-  person: string
-  event: string
+  personIds: string[]
+  eventIds: string[]
   from: string
   to: string
 }
 
-export function readFiltersFromDOM(): FilterState {
-  return {
-    q: (document.getElementById('search-input') as HTMLInputElement).value.trim(),
-    person: (document.getElementById('filter-person') as HTMLSelectElement).value,
-    event: (document.getElementById('filter-event') as HTMLSelectElement).value,
-    from: (document.getElementById('filter-from') as HTMLInputElement).value,
-    to: (document.getElementById('filter-to') as HTMLInputElement).value,
-  }
-}
-
-export function writeFiltersToDom(state: FilterState): void {
-  ;(document.getElementById('search-input') as HTMLInputElement).value = state.q
-  ;(document.getElementById('filter-person') as HTMLSelectElement).value = state.person
-  ;(document.getElementById('filter-event') as HTMLSelectElement).value = state.event
-  ;(document.getElementById('filter-from') as HTMLInputElement).value = state.from
-  ;(document.getElementById('filter-to') as HTMLInputElement).value = state.to
-}
-
 export function hasActiveFilters(state: FilterState): boolean {
-  return !!(state.q || state.person || state.event || state.from || state.to)
+  return !!(state.q || state.personIds.length || state.eventIds.length || state.from || state.to)
 }
 
 export function clearFilterState(): FilterState {
-  return { q: '', person: '', event: '', from: '', to: '' }
+  return { q: '', personIds: [], eventIds: [], from: '', to: '' }
 }
 
 // ─── URL param sync ───────────────────────────────────────────────────────────
-
-const PARAM_MAP: Record<keyof FilterState, string> = {
-  q: 'q',
-  person: 'person',
-  event: 'event',
-  from: 'from',
-  to: 'to',
-}
 
 export function readFiltersFromURL(): FilterState {
   const params = new URLSearchParams(window.location.search)
   return {
     q: params.get('q') || '',
-    person: params.get('person') || '',
-    event: params.get('event') || '',
+    personIds: params.get('person')?.split(',').filter(Boolean) || [],
+    eventIds: params.get('event')?.split(',').filter(Boolean) || [],
     from: params.get('from') || '',
     to: params.get('to') || '',
   }
@@ -77,10 +51,11 @@ export function readFiltersFromURL(): FilterState {
 
 export function pushFiltersToURL(state: FilterState): void {
   const params = new URLSearchParams()
-  for (const [key, paramName] of Object.entries(PARAM_MAP)) {
-    const val = state[key as keyof FilterState]
-    if (val) params.set(paramName, val)
-  }
+  if (state.q) params.set('q', state.q)
+  if (state.personIds.length) params.set('person', state.personIds.join(','))
+  if (state.eventIds.length) params.set('event', state.eventIds.join(','))
+  if (state.from) params.set('from', state.from)
+  if (state.to) params.set('to', state.to)
   const search = params.toString()
   const url = search ? `?${search}` : window.location.pathname
   window.history.replaceState(null, '', url)
@@ -88,7 +63,7 @@ export function pushFiltersToURL(state: FilterState): void {
 
 // ─── Filter status bar ───────────────────────────────────────────────────────
 
-export function updateFilterStatus(state: FilterState, resultCount: number): void {
+export async function updateFilterStatus(state: FilterState, resultCount: number): Promise<void> {
   const statusEl = document.getElementById('filter-status')!
   const textEl = document.getElementById('filter-status-text')!
 
@@ -101,16 +76,21 @@ export function updateFilterStatus(state: FilterState, resultCount: number): voi
 
   const parts: string[] = []
   if (state.q) parts.push(`"${state.q}"`)
-  if (state.person) {
-    const opt = (document.getElementById('filter-person') as HTMLSelectElement)
-      .querySelector<HTMLOptionElement>(`option[value="${state.person}"]`)
-    if (opt) parts.push(opt.textContent || state.person)
+
+  if (state.personIds.length) {
+    const allPeople = await getPeople()
+    const names = state.personIds
+      .map(id => allPeople.find(p => p.id === id)?.name || id)
+    parts.push(names.join(', '))
   }
-  if (state.event) {
-    const opt = (document.getElementById('filter-event') as HTMLSelectElement)
-      .querySelector<HTMLOptionElement>(`option[value="${state.event}"]`)
-    if (opt) parts.push(opt.textContent || state.event)
+
+  if (state.eventIds.length) {
+    const allEvents = await getEvents()
+    const titles = state.eventIds
+      .map(id => allEvents.find(e => e.id === id)?.title || id)
+    parts.push(titles.join(', '))
   }
+
   if (state.from && state.to) parts.push(`${state.from}–${state.to}`)
   else if (state.from) parts.push(`from ${state.from}`)
   else if (state.to) parts.push(`until ${state.to}`)
@@ -123,8 +103,8 @@ export function updateFilterStatus(state: FilterState, resultCount: number): voi
 
 export async function executeSearch(state: FilterState): Promise<Asset[]> {
   const params: Record<string, string> = { limit: '500' }
-  if (state.person) params.person = state.person
-  if (state.event) params.event = state.event
+  if (state.personIds.length) params.person = state.personIds.join(',')
+  if (state.eventIds.length) params.event = state.eventIds.join(',')
   if (state.from) params.from = state.from
   if (state.to) params.to = state.to
 

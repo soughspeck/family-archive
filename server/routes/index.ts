@@ -138,8 +138,16 @@ searchRouter.get('/', (req: Request, res: Response) => {
     sql += ` AND a.id IN (${assetIds.map(() => '?').join(',')})`
     params.push(...assetIds)
   }
-  if (person) { sql += ` AND ap.person_id = ?`; params.push(person) }
-  if (event)  { sql += ` AND ae.event_id = ?`; params.push(event) }
+  if (person) {
+    const pids = person.split(',').filter(Boolean)
+    sql += ` AND ap.person_id IN (${pids.map(() => '?').join(',')})`
+    params.push(...pids)
+  }
+  if (event) {
+    const eids = event.split(',').filter(Boolean)
+    sql += ` AND ae.event_id IN (${eids.map(() => '?').join(',')})`
+    params.push(...eids)
+  }
   if (from)   { sql += ` AND a.taken_at >= ?`; params.push(from) }
   if (to)     { sql += ` AND a.taken_at <= ?`; params.push(to) }
 

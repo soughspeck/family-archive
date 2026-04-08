@@ -2,15 +2,19 @@ import { api } from './api.js'
 import { openUploadModal } from './upload.js'
 
 export async function init(): Promise<void> {
-  const content = document.getElementById('dashboard-content')!
-  content.innerHTML = '<div class="state-loading">Loading…</div>'
+  const app = document.getElementById('app')!
+  app.innerHTML = '<div class="dashboard-content" id="dashboard-content"><div class="state-loading">Loading…</div></div>'
 
   try {
     const stats = await api.dashboard.stats()
     renderDashboard(stats)
   } catch {
-    content.innerHTML = '<div class="state-loading">Could not load dashboard.</div>'
+    document.getElementById('dashboard-content')!.innerHTML = '<div class="state-loading">Could not load dashboard.</div>'
   }
+}
+
+export function destroy(): void {
+  // nothing to clean up
 }
 
 function renderDashboard(stats: Awaited<ReturnType<typeof api.dashboard.stats>>): void {

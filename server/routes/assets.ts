@@ -57,8 +57,16 @@ assetsRouter.get('/', (req: Request, res: Response) => {
 
   if (from) { sql += ` AND a.taken_at >= ?`; params.push(from) }
   if (to)   { sql += ` AND a.taken_at <= ?`; params.push(to) }
-  if (person) { sql += ` AND ap.person_id = ?`; params.push(person) }
-  if (event)  { sql += ` AND ae.event_id = ?`; params.push(event) }
+  if (person) {
+    const pids = person.split(',').filter(Boolean)
+    sql += ` AND ap.person_id IN (${pids.map(() => '?').join(',')})`
+    params.push(...pids)
+  }
+  if (event) {
+    const eids = event.split(',').filter(Boolean)
+    sql += ` AND ae.event_id IN (${eids.map(() => '?').join(',')})`
+    params.push(...eids)
+  }
   if (precision) { sql += ` AND a.date_precision = ?`; params.push(precision) }
   if (mime)   { sql += ` AND a.mime_type LIKE ?`; params.push(`${mime}%`) }
 
@@ -257,6 +265,10 @@ assetsRouter.delete('/:id', (req: Request, res: Response) => {
     if (fs.existsSync(thumbFull)) fs.unlinkSync(thumbFull)
   }
 
+  db.prepare('DELETE FROM asset_people WHERE asset_id = ?').run(req.params.id)
+  db.prepare('DELETE FROM asset_events WHERE asset_id = ?').run(req.params.id)
+  db.prepare('DELETE FROM asset_metadata WHERE asset_id = ?').run(req.params.id)
+  db.prepare('DELETE FROM tagging_queue WHERE asset_id = ?').run(req.params.id)
   db.prepare('DELETE FROM search_index WHERE asset_id = ?').run(req.params.id)
   db.prepare('DELETE FROM assets WHERE id = ?').run(req.params.id)
 

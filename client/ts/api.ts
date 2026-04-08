@@ -98,6 +98,12 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>
 }
 
+async function del<T>(path: string): Promise<T> {
+  const res = await fetch('/api' + path, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+  return res.json() as Promise<T>
+}
+
 async function patch<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch('/api' + path, {
     method: 'PATCH',
@@ -122,6 +128,8 @@ export const api = {
       patch<{ ok: boolean }>(`/assets/${id}`, body),
     upload: (formData: FormData) =>
       fetch('/api/assets/upload', { method: 'POST', body: formData }).then(r => r.json()),
+    delete: (id: string) =>
+      del<{ ok: boolean }>(`/assets/${id}`),
   },
 
   people: {

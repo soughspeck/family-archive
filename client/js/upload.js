@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import { getPeople, getEvents } from './search.js';
 // ─── Upload flow ──────────────────────────────────────────────────────────────
 let selectedFiles = [];
 let people = [];
@@ -7,10 +8,7 @@ export async function openUploadModal() {
     const modal = document.getElementById('upload-modal');
     modal.classList.remove('hidden');
     document.body.style.overflow = 'hidden';
-    [people, events] = await Promise.all([
-        api.people.list().catch(() => []),
-        api.events.list().catch(() => []),
-    ]);
+    [people, events] = await Promise.all([getPeople(), getEvents()]);
     selectedFiles = [];
     renderUploadStep1();
     document.getElementById('upload-close').onclick = closeUploadModal;

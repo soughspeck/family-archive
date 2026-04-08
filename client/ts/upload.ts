@@ -1,4 +1,5 @@
 import { api, Person, ArchiveEvent } from './api.js'
+import { getPeople, getEvents } from './search.js'
 
 // ─── Upload flow ──────────────────────────────────────────────────────────────
 
@@ -11,10 +12,7 @@ export async function openUploadModal(): Promise<void> {
   modal.classList.remove('hidden')
   document.body.style.overflow = 'hidden'
 
-  ;[people, events] = await Promise.all([
-    api.people.list().catch(() => [] as Person[]),
-    api.events.list().catch(() => [] as ArchiveEvent[]),
-  ])
+  ;[people, events] = await Promise.all([getPeople(), getEvents()])
 
   selectedFiles = []
   renderUploadStep1()

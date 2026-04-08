@@ -25,9 +25,11 @@ app.use(express.urlencoded({ extended: true }))
 fs.mkdirSync(config.uploadsDir, { recursive: true })
 app.use('/uploads', express.static(config.uploadsDir))
 
-// Serve client HTML/CSS/JS
+// Serve client HTML/CSS/JS (no-cache in dev for live reloads)
 const clientDir = path.join(process.cwd(), 'client')
-app.use(express.static(clientDir))
+app.use(express.static(clientDir, { etag: false, lastModified: false, setHeaders: (res) => {
+  res.setHeader('Cache-Control', 'no-store')
+}}))
 
 // ─── API routes ───────────────────────────────────────────────────────────────
 app.use('/api/assets', assetsRouter)

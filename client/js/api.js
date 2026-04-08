@@ -23,6 +23,12 @@ async function post(path, body) {
         throw new Error(`${res.status} ${res.statusText}`);
     return res.json();
 }
+async function del(path) {
+    const res = await fetch('/api' + path, { method: 'DELETE' });
+    if (!res.ok)
+        throw new Error(`${res.status} ${res.statusText}`);
+    return res.json();
+}
 async function patch(path, body) {
     const res = await fetch('/api' + path, {
         method: 'PATCH',
@@ -41,6 +47,7 @@ export const api = {
         get: (id) => get(`/assets/${id}`),
         update: (id, body) => patch(`/assets/${id}`, body),
         upload: (formData) => fetch('/api/assets/upload', { method: 'POST', body: formData }).then(r => r.json()),
+        delete: (id) => del(`/assets/${id}`),
     },
     people: {
         list: () => get('/people'),

@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "family-archive",
+      "runtimeExecutable": "/Users/annahy/.nvm/versions/node/v22.22.1/bin/node",
+      "runtimeArgs": ["/Users/annahy/.nvm/versions/node/v22.22.1/bin/npx", "tsx", "server/index.ts"],
+      "port": 3000
+    }
+  ]
+}
