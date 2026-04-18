@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "family-archive",
-      "runtimeExecutable": "/Users/annahy/.nvm/versions/node/v22.22.1/bin/node",
-      "runtimeArgs": ["/Users/annahy/.nvm/versions/node/v22.22.1/bin/npx", "tsx", "server/index.ts"],
+      "runtimeExecutable": "/Users/annahy/.nvm/versions/node/v18.12.1/bin/node",
+      "runtimeArgs": ["/Users/annahy/Documents/personal/family-archive/node_modules/.bin/tsx", "server/index.ts"],
       "port": 3000
     }
   ]

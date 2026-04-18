@@ -245,6 +245,13 @@ a { color: var(--accent); }
 
 .filter-year { max-width: 90px; }
 
+.filter-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 /* Chip-based filter multiselect */
 .filter-chip-select {
   position: relative;
@@ -322,6 +329,7 @@ a { color: var(--accent); }
   top: calc(100% + 4px);
   left: 0;
   right: 0;
+  z-index: 500;
 }
 
 .filter-status {
@@ -839,6 +847,57 @@ a { color: var(--accent); }
   justify-content: center;
   min-height: 220px;
   overflow: hidden;
+  position: relative;
+}
+
+.zoom-wrap {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.zoom-controls {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+  border-radius: 20px;
+  padding: 3px 6px;
+  z-index: 10;
+}
+
+.zoom-btn {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.1s;
+}
+
+.zoom-btn:hover { background: rgba(255, 255, 255, 0.2); }
+
+.zoom-level {
+  color: #fff;
+  font-size: 0.72rem;
+  min-width: 36px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 
 @media (min-width: 640px) {
@@ -853,6 +912,17 @@ a { color: var(--accent); }
   max-height: 60dvh;
   object-fit: contain;
 }
+
+.asset-media img#zoom-img {
+  transform-origin: center center;
+  user-select: none;
+  will-change: transform;
+  transition: transform 0.12s ease-out;
+  cursor: default;
+}
+
+.zoom-wrap.is-zoomed img#zoom-img { cursor: grab; }
+.zoom-wrap.is-grabbing img#zoom-img { cursor: grabbing; transition: none; }
 
 @media (min-width: 640px) {
   .asset-media img, .asset-media video { max-height: 80dvh; }

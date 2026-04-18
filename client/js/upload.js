@@ -103,21 +103,21 @@ function renderUploadStep2() {
 
     <div class="upload-meta-fields">
       <div class="field-row">
-        <label class="field-label" for="meta-date">Date (leave blank to use EXIF)</label>
-        <input type="text" id="meta-date" class="field-input" placeholder="e.g. 1987, 1987-06, 1987-06-14">
-      </div>
-
-      <div class="field-row">
-        <label class="field-label" for="meta-precision">Date precision</label>
+        <label class="field-label" for="meta-precision">Date type</label>
         <select id="meta-precision" class="field-input">
-          <option value="">Auto-detect</option>
-          <option value="exact">Exact</option>
-          <option value="day">Day</option>
-          <option value="month">Month</option>
+          <option value="">Auto-detect from EXIF</option>
+          <option value="exact">Exact date &amp; time</option>
+          <option value="day">Day known</option>
+          <option value="month">Month known</option>
           <option value="year">Year only</option>
-          <option value="circa">Circa / approximate</option>
+          <option value="circa">Approximate / circa</option>
           <option value="unknown">Unknown</option>
         </select>
+      </div>
+
+      <div id="upload-date-wrap" class="field-row" style="display:none">
+        <label class="field-label">Date</label>
+        <div id="upload-date-input-wrap"></div>
       </div>
 
       <div class="field-row">
@@ -152,10 +152,25 @@ function renderUploadStep2() {
     </div>`;
     document.getElementById('btn-back-upload').addEventListener('click', renderUploadStep1);
     document.getElementById('btn-submit-upload').addEventListener('click', submitUpload);
+    const precisionSel = document.getElementById('meta-precision');
+    const dateWrap = document.getElementById('upload-date-wrap');
+    const dateInputWrap = document.getElementById('upload-date-input-wrap');
+    precisionSel.addEventListener('change', () => {
+        const p = precisionSel.value;
+        if (!p || p === 'unknown') {
+            dateWrap.style.display = 'none';
+            dateInputWrap.innerHTML = '';
+        }
+        else {
+            dateWrap.style.display = '';
+            dateInputWrap.innerHTML = renderUploadDateInput(p);
+        }
+    });
 }
 async function submitUpload() {
-    const dateVal = document.getElementById('meta-date').value.trim();
     const precision = document.getElementById('meta-precision').value;
+    const dateEl = document.getElementById('meta-date');
+    const dateVal = dateEl ? dateEl.value.trim() : '';
     const peopleSel = document.getElementById('meta-people');
     const eventVal = document.getElementById('meta-event').value;
     const notes = document.getElementById('meta-notes').value.trim();
@@ -197,6 +212,16 @@ async function submitUpload() {
         // Reload the page so timeline refreshes
         window.location.reload();
     }, 1200);
+}
+function renderUploadDateInput(precision) {
+    switch (precision) {
+        case 'exact': return `<input type="datetime-local" id="meta-date" class="field-input">`;
+        case 'day': return `<input type="date" id="meta-date" class="field-input">`;
+        case 'month': return `<input type="month" id="meta-date" class="field-input">`;
+        case 'year':
+        case 'circa': return `<input type="number" id="meta-date" class="field-input" min="1800" max="2099" placeholder="Year (e.g. 1987)">`;
+        default: return '';
+    }
 }
 function escHtml(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');

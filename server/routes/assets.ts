@@ -214,18 +214,27 @@ assetsRouter.patch('/:id', (req: Request, res: Response) => {
   const asset = db.prepare('SELECT id FROM assets WHERE id = ?').get(id)
   if (!asset) return res.status(404).json({ error: 'Not found' })
 
+  // Use explicit field presence to allow nullifying taken_at/date_precision
+  const hasTakenAt = 'taken_at' in req.body
+  const hasPrecision = 'date_precision' in req.body
+
   db.prepare(`
     UPDATE assets SET
       notes = COALESCE(?, notes),
-      taken_at = COALESCE(?, taken_at),
-      date_precision = COALESCE(?, date_precision),
+      taken_at = ${hasTakenAt ? '?' : 'taken_at'},
+      date_precision = ${hasPrecision ? '?' : 'date_precision'},
       location_name = COALESCE(?, location_name),
       latitude = COALESCE(?, latitude),
       longitude = COALESCE(?, longitude),
       visibility = COALESCE(?, visibility),
       updated_at = datetime('now')
     WHERE id = ?
-  `).run(notes, taken_at, date_precision, location_name, latitude, longitude, visibility, id)
+  `).run(
+    notes,
+    ...(hasTakenAt ? [taken_at] : []),
+    ...(hasPrecision ? [date_precision] : []),
+    location_name, latitude, longitude, visibility, id
+  )
 
   // Update people links if provided
   if (person_ids !== undefined) {

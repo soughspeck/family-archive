@@ -29,9 +29,12 @@ export async function init() {
         </div>
         <input type="number" class="filter-year" id="filter-from" placeholder="From year">
         <input type="number" class="filter-year" id="filter-to" placeholder="To year">
-        <a class="filter-clear hidden" id="clear-filters" href="#">Clear filters</a>
+        <div class="filter-actions">
+          <button class="btn btn-small btn-primary" id="search-btn">Search</button>
+          <button class="btn btn-small btn-ghost hidden" id="clear-filters">Clear</button>
+        </div>
       </div>
-      <div class="filter-status" id="filter-status"></div>
+      <div class="filter-status hidden" id="filter-status"><span id="filter-status-text"></span></div>
     </div>
     <div id="timeline-content"><div class="state-loading">Loading…</div></div>`;
     // Preload cached data
@@ -287,10 +290,26 @@ function renderAssetDetail(asset, full) {
     const thumbUrl = thumbnailUrl(asset);
     let mediaHtml = '';
     if (mime.startsWith('image/') && origUrl) {
-        mediaHtml = `<img src="${origUrl}" alt="${escHtml(asset.original_name || '')}" loading="lazy">`;
+        mediaHtml = `
+      <div class="zoom-wrap" id="zoom-wrap">
+        <img src="${origUrl}" alt="${escHtml(asset.original_name || '')}" loading="lazy" id="zoom-img" draggable="false">
+      </div>
+      <div class="zoom-controls">
+        <button class="zoom-btn" id="zoom-out" title="Zoom out">−</button>
+        <span class="zoom-level" id="zoom-level">100%</span>
+        <button class="zoom-btn" id="zoom-in" title="Zoom in">+</button>
+      </div>`;
     }
     else if (mime.startsWith('image/') && thumbUrl) {
-        mediaHtml = `<img src="${thumbUrl}" alt="${escHtml(asset.original_name || '')}">`;
+        mediaHtml = `
+      <div class="zoom-wrap" id="zoom-wrap">
+        <img src="${thumbUrl}" alt="${escHtml(asset.original_name || '')}" id="zoom-img" draggable="false">
+      </div>
+      <div class="zoom-controls">
+        <button class="zoom-btn" id="zoom-out" title="Zoom out">−</button>
+        <span class="zoom-level" id="zoom-level">100%</span>
+        <button class="zoom-btn" id="zoom-in" title="Zoom in">+</button>
+      </div>`;
     }
     else if (mime.startsWith('video/') && origUrl) {
         mediaHtml = `<video src="${origUrl}" controls preload="metadata"></video>`;
@@ -335,19 +354,20 @@ function renderAssetDetail(asset, full) {
     <div class="asset-detail">
       <div class="asset-media">${mediaHtml}</div>
       <div class="asset-info">
-        <div class="asset-info-title">${escHtml(asset.original_name || asset.filename)}</div>
+        <div class="asset-info-title" id="filename">${escHtml(asset.original_name || asset.filename)}</div>
+        
 
         <div class="asset-info-section">
           <div class="asset-info-label">Date</div>
           <div id="date-section">
             ${dateDisplay}
             <div class="date-editor hidden" id="date-editor">
-              <input type="text" class="date-editor-input" id="date-input"
-                value="${escHtml(asset.taken_at || '')}"
-                placeholder="e.g. 1987, 1987-06, 1987-06-14">
               <select class="date-editor-precision" id="date-precision">${precisionSelect}</select>
-              <button class="btn btn-small btn-primary" id="date-save">Save</button>
-              <button class="btn btn-small btn-ghost" id="date-cancel">Cancel</button>
+              <div id="date-input-wrap"></div>
+              <div class="btn-row" style="margin-top:8px">
+                <button class="btn btn-small btn-primary" id="date-save">Save</button>
+                <button class="btn btn-small btn-ghost" id="date-cancel">Cancel</button>
+              </div>
             </div>
           </div>
         </div>
@@ -396,13 +416,18 @@ async function bindOverlayTagging(asset) {
     // ── Date editing ──
     const dateSection = document.getElementById('date-section');
     const dateEditor = document.getElementById('date-editor');
-    const dateInput = document.getElementById('date-input');
     const datePrecision = document.getElementById('date-precision');
+    function updateDateInputForPrecision(precision, takenAt) {
+        const wrap = document.getElementById('date-input-wrap');
+        if (wrap) wrap.innerHTML = renderDateInputHtml(precision, takenAt);
+    }
     function showEditor() {
         document.getElementById('date-display')?.classList.add('hidden');
         document.getElementById('date-add-btn')?.classList.add('hidden');
         dateEditor.classList.remove('hidden');
-        dateInput.focus();
+        if (datePrecision.value === 'unknown') datePrecision.value = 'day';
+        updateDateInputForPrecision(datePrecision.value, asset.taken_at || '');
+        (document.getElementById('date-input') || datePrecision).focus();
     }
     function rebuildDateDisplay() {
         const hasDate = asset.taken_at && asset.date_precision !== 'unknown';
@@ -445,7 +470,6 @@ async function bindOverlayTagging(asset) {
                 await api.assets.update(asset.id, { taken_at: null, date_precision: 'unknown' });
                 asset.taken_at = null;
                 asset.date_precision = 'unknown';
-                dateInput.value = '';
                 datePrecision.value = 'unknown';
                 rebuildDateDisplay();
             }
@@ -460,20 +484,27 @@ async function bindOverlayTagging(asset) {
             showEditor();
     });
     bindDateRemove();
+    datePrecision.addEventListener('change', () => {
+        updateDateInputForPrecision(datePrecision.value, asset.taken_at || '');
+    });
     document.getElementById('date-cancel')?.addEventListener('click', () => {
-        dateInput.value = asset.taken_at || '';
         datePrecision.value = asset.date_precision || 'unknown';
         rebuildDateDisplay();
     });
     document.getElementById('date-save')?.addEventListener('click', async () => {
-        const taken_at = dateInput.value.trim() || null;
         const date_precision = datePrecision.value;
+        let taken_at = null;
+        if (date_precision !== 'unknown') {
+            const input = document.getElementById('date-input');
+            taken_at = input?.value?.trim() || null;
+        }
         try {
             await api.assets.update(asset.id, { taken_at, date_precision });
             asset.taken_at = taken_at;
             asset.date_precision = date_precision;
             rebuildDateDisplay();
-            showToast('Date added');
+            showToast('Date saved');
+            applyFilters();
         }
         catch {
             alert('Failed to save date.');
@@ -641,6 +672,7 @@ async function bindOverlayTagging(asset) {
         if (!target.closest('#event-tag-editor'))
             eventDropdown.classList.add('hidden');
     }, { once: false });
+    bindImageZoom();
     // ── Delete button ──
     document.getElementById('btn-delete-asset')?.addEventListener('click', async () => {
         if (!confirm(`Delete "${asset.original_name || asset.filename}"? This cannot be undone.`))
@@ -667,6 +699,111 @@ function addChip(type, id, label) {
     chip.dataset[type === 'people' ? 'personId' : 'eventId'] = id;
     chip.innerHTML = `${escHtml(label)}<button class="${xClass}" data-${idAttr}="${id}" aria-label="Remove ${escHtml(label)}">×</button>`;
     container.appendChild(chip);
+}
+function bindImageZoom() {
+    const wrap = document.getElementById('zoom-wrap');
+    const img = document.getElementById('zoom-img');
+    const levelEl = document.getElementById('zoom-level');
+    if (!wrap || !img) return;
+    let zoom = 1, tx = 0, ty = 0;
+    function clamp(z, x, y) {
+        if (z <= 1) return { x: 0, y: 0 };
+        const iw = img.offsetWidth * z;
+        const ih = img.offsetHeight * z;
+        const ww = wrap.offsetWidth;
+        const wh = wrap.offsetHeight;
+        const maxX = Math.max(0, (iw - ww) / 2);
+        const maxY = Math.max(0, (ih - wh) / 2);
+        return { x: Math.max(-maxX, Math.min(maxX, x)), y: Math.max(-maxY, Math.min(maxY, y)) };
+    }
+    function apply(animate = true) {
+        if (!animate) img.style.transition = 'none';
+        else img.style.transition = '';
+        img.style.transform = `translate(${tx}px, ${ty}px) scale(${zoom})`;
+        if (levelEl) levelEl.textContent = `${Math.round(zoom * 100)}%`;
+        wrap.classList.toggle('is-zoomed', zoom > 1);
+    }
+    function setZoom(newZoom, ox = 0, oy = 0, animate = true) {
+        newZoom = Math.max(1, Math.min(8, newZoom));
+        tx = ox + (tx - ox) * (newZoom / zoom);
+        ty = oy + (ty - oy) * (newZoom / zoom);
+        zoom = newZoom;
+        const c = clamp(zoom, tx, ty);
+        tx = c.x; ty = c.y;
+        apply(animate);
+    }
+    document.getElementById('zoom-in')?.addEventListener('click', e => { e.stopPropagation(); setZoom(zoom * 1.5); });
+    document.getElementById('zoom-out')?.addEventListener('click', e => { e.stopPropagation(); setZoom(zoom / 1.5); });
+    // Double-click to reset
+    wrap.addEventListener('dblclick', () => { zoom = 1; tx = 0; ty = 0; apply(); });
+    // Scroll to zoom
+    wrap.addEventListener('wheel', e => {
+        e.preventDefault();
+        const r = wrap.getBoundingClientRect();
+        const ox = e.clientX - r.left - r.width / 2;
+        const oy = e.clientY - r.top - r.height / 2;
+        setZoom(zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), ox, oy, false);
+    }, { passive: false });
+    // Drag to pan
+    let dragging = false, dx = 0, dy = 0, startTx = 0, startTy = 0;
+    wrap.addEventListener('mousedown', e => {
+        if (zoom <= 1) return;
+        dragging = true; dx = e.clientX; dy = e.clientY; startTx = tx; startTy = ty;
+        wrap.classList.add('is-grabbing');
+        e.preventDefault();
+    });
+    window.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        tx = startTx + (e.clientX - dx);
+        ty = startTy + (e.clientY - dy);
+        const c = clamp(zoom, tx, ty); tx = c.x; ty = c.y;
+        apply(false);
+    });
+    window.addEventListener('mouseup', () => { dragging = false; wrap.classList.remove('is-grabbing'); });
+    // Pinch to zoom
+    let lastDist = 0, pinchOx = 0, pinchOy = 0;
+    wrap.addEventListener('touchstart', e => {
+        if (e.touches.length !== 2) return;
+        e.preventDefault();
+        lastDist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
+        const r = wrap.getBoundingClientRect();
+        pinchOx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left - r.width / 2;
+        pinchOy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top - r.height / 2;
+    }, { passive: false });
+    wrap.addEventListener('touchmove', e => {
+        if (e.touches.length !== 2 || !lastDist) return;
+        e.preventDefault();
+        const dist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
+        setZoom(zoom * (dist / lastDist), pinchOx, pinchOy, false);
+        lastDist = dist;
+    }, { passive: false });
+    wrap.addEventListener('touchend', () => { lastDist = 0; });
+}
+function renderDateInputHtml(precision, takenAt) {
+    switch (precision) {
+        case 'exact': {
+            let val = '';
+            if (takenAt && takenAt.length >= 10) {
+                val = takenAt.length >= 16 ? takenAt.substring(0, 16) : takenAt.substring(0, 10) + 'T00:00';
+            }
+            return `<input type="datetime-local" class="date-editor-input" id="date-input" value="${escHtml(val)}">`;
+        }
+        case 'day': {
+            const val = takenAt && takenAt.length >= 10 ? takenAt.substring(0, 10) : '';
+            return `<input type="date" class="date-editor-input" id="date-input" value="${escHtml(val)}">`;
+        }
+        case 'month': {
+            const val = takenAt && takenAt.length >= 7 ? takenAt.substring(0, 7) : '';
+            return `<input type="month" class="date-editor-input" id="date-input" value="${escHtml(val)}">`;
+        }
+        case 'year':
+        case 'circa': {
+            const val = takenAt ? takenAt.substring(0, 4) : '';
+            return `<input type="number" class="date-editor-input" id="date-input" min="1800" max="2099" placeholder="Year (e.g. 1987)" value="${escHtml(val)}">`;
+        }
+        default:
+            return `<span style="font-size:0.82rem;color:var(--text-2);display:block;padding:4px 0">No date will be stored.</span>`;
+    }
 }
 function precisionLabel(precision) {
     const labels = {
@@ -727,6 +864,7 @@ function bindFilters() {
         onRemove(id) { selectedEventIds = selectedEventIds.filter(x => x !== id); renderEventChips(); applyFilters(); },
     });
     // Clear filters button
+    document.getElementById('search-btn').addEventListener('click', applyFilters);
     document.getElementById('clear-filters').addEventListener('click', () => {
         search.value = '';
         from.value = '';
@@ -831,6 +969,7 @@ function bindChipSelect(cfg) {
 async function applyFilters() {
     const state = readFilterState();
     const isFiltered = hasActiveFilters(state);
+    document.getElementById('clear-filters')?.classList.toggle('hidden', !isFiltered);
     pushFiltersToURL(state);
     const content = document.getElementById('timeline-content');
     content.innerHTML = `<div class="state-loading">${state.q ? 'Searching…' : 'Loading memories…'}</div>`;
