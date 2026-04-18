@@ -264,6 +264,10 @@ function openOverlay(index) {
 function closeOverlay() {
     document.getElementById('asset-overlay').classList.add('hidden');
     document.body.style.overflow = '';
+    closeMenuDropdown();
+}
+function closeMenuDropdown() {
+    document.getElementById('overlay-menu-dropdown')?.classList.add('hidden');
 }
 async function renderOverlay() {
     const asset = filteredAssets[currentIndex];
@@ -334,12 +338,23 @@ function renderAssetDetail(asset, full) {
         <div style="font-size:0.88rem;color:var(--text-2)">${escHtml(asset.location_name)}</div>
        </div>`
         : '';
-    const notes = asset.notes
-        ? `<div class="asset-info-section">
+    const notesDisplay = asset.notes
+        ? `<div id="notes-display"><div class="asset-info-notes notes-editable">${escHtml(asset.notes)}</div></div>`
+        : `<button class="tag-add-btn" id="notes-add-btn">+ Add note</button>`;
+    const notes = `
+      <div class="asset-info-section">
         <div class="asset-info-label">Notes</div>
-        <div class="asset-info-notes">${escHtml(asset.notes)}</div>
-       </div>`
-        : '';
+        <div id="notes-section">
+          ${notesDisplay}
+          <div class="notes-editor hidden" id="notes-editor">
+            <textarea class="notes-textarea" id="notes-input" rows="3" placeholder="Add a note…">${escHtml(asset.notes || '')}</textarea>
+            <div class="btn-row" style="margin-top:8px">
+              <button class="btn btn-small btn-primary" id="notes-save">Save</button>
+              <button class="btn btn-small btn-ghost" id="notes-cancel">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
     const precisionOptions = ['exact', 'day', 'month', 'year', 'circa', 'unknown'];
     const precisionSelect = precisionOptions
         .map(p => `<option value="${p}"${asset.date_precision === p ? ' selected' : ''}>${precisionLabel(p)}</option>`)
@@ -407,7 +422,6 @@ function renderAssetDetail(asset, full) {
           ${asset.mime_type ? `${asset.mime_type}<br>` : ''}
         </div>
 
-        <button class="btn-delete-asset" id="btn-delete-asset" data-id="${asset.id}">Delete item</button>
       </div>
     </div>`;
 }
@@ -673,8 +687,71 @@ async function bindOverlayTagging(asset) {
             eventDropdown.classList.add('hidden');
     }, { once: false });
     bindImageZoom();
-    // ── Delete button ──
-    document.getElementById('btn-delete-asset')?.addEventListener('click', async () => {
+    // ── Notes editing ──
+    const notesSection = document.getElementById('notes-section');
+    const notesEditor = document.getElementById('notes-editor');
+    const notesInput = document.getElementById('notes-input');
+    function showNotesEditor() {
+        document.getElementById('notes-display')?.classList.add('hidden');
+        document.getElementById('notes-add-btn')?.classList.add('hidden');
+        notesEditor.classList.remove('hidden');
+        notesInput.focus();
+    }
+    function rebuildNotesDisplay() {
+        const hasNotes = !!asset.notes;
+        const displayEl = document.getElementById('notes-display');
+        const addBtn = document.getElementById('notes-add-btn');
+        if (hasNotes) {
+            if (displayEl) {
+                displayEl.innerHTML = `<div class="asset-info-notes notes-editable">${escHtml(asset.notes)}</div>`;
+                displayEl.classList.remove('hidden');
+                bindNotesClick();
+            } else {
+                addBtn?.remove();
+                const div = document.createElement('div');
+                div.id = 'notes-display';
+                div.innerHTML = `<div class="asset-info-notes notes-editable">${escHtml(asset.notes)}</div>`;
+                notesSection.insertBefore(div, notesEditor);
+                bindNotesClick();
+            }
+        } else {
+            displayEl?.remove();
+            if (!document.getElementById('notes-add-btn')) {
+                const btn = document.createElement('button');
+                btn.className = 'tag-add-btn';
+                btn.id = 'notes-add-btn';
+                btn.textContent = '+ Add note';
+                btn.addEventListener('click', showNotesEditor);
+                notesSection.insertBefore(btn, notesEditor);
+            } else {
+                addBtn.classList.remove('hidden');
+            }
+        }
+        notesEditor.classList.add('hidden');
+    }
+    function bindNotesClick() {
+        document.getElementById('notes-display')?.addEventListener('click', showNotesEditor);
+    }
+    document.getElementById('notes-add-btn')?.addEventListener('click', showNotesEditor);
+    bindNotesClick();
+    document.getElementById('notes-cancel')?.addEventListener('click', () => {
+        notesInput.value = asset.notes || '';
+        rebuildNotesDisplay();
+    });
+    document.getElementById('notes-save')?.addEventListener('click', async () => {
+        const notes = notesInput.value.trim() || null;
+        try {
+            await api.assets.update(asset.id, { notes });
+            asset.notes = notes;
+            rebuildNotesDisplay();
+            showToast('Note saved');
+        } catch {
+            alert('Failed to save note.');
+        }
+    });
+    // ── Dot menu delete ──
+    document.getElementById('overlay-menu-delete')?.addEventListener('click', async () => {
+        closeMenuDropdown();
         if (!confirm(`Delete "${asset.original_name || asset.filename}"? This cannot be undone.`))
             return;
         try {
@@ -875,6 +952,15 @@ function bindFilters() {
         applyFilters();
     });
     // Overlay nav + close
+    document.getElementById('overlay-menu').addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('overlay-menu-dropdown').classList.toggle('hidden');
+    });
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#overlay-menu') && !e.target.closest('#overlay-menu-dropdown')) {
+            closeMenuDropdown();
+        }
+    });
     document.getElementById('overlay-close').addEventListener('click', closeOverlay);
     document.getElementById('overlay-backdrop').addEventListener('click', closeOverlay);
     document.getElementById('overlay-prev').addEventListener('click', () => {
@@ -1262,6 +1348,10 @@ export function destroy() {
 // ─── Util ─────────────────────────────────────────────────────────────────────
 function escHtml(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function capFirst(s) {
+    if (!s) return s;
+    return s.charAt(0).toUpperCase() + s.slice(1);
 }
 function showToast(message) {
     const existing = document.getElementById('toast');
