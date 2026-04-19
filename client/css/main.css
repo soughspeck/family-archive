@@ -288,6 +288,14 @@ a { color: var(--accent); }
   border-radius: 12px;
   font-weight: 500;
   white-space: nowrap;
+  max-width: 160px;
+}
+
+.filter-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .filter-chip-event {
@@ -849,6 +857,10 @@ a { color: var(--accent); }
 .overlay-prev { left: 10px; }
 .overlay-next { right: 10px; }
 .overlay-nav:disabled { opacity: 0.2; pointer-events: none; }
+
+@media (min-width: 640px) {
+  .overlay-next { right: calc(30% + 10px); }
+}
 
 .overlay-content {
   overflow-y: auto;

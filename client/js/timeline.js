@@ -7,6 +7,7 @@ let searchTimeout = null;
 // Filter chip selections
 let selectedPersonIds = [];
 let selectedEventIds = [];
+let selectedPrecision = '';
 // Bulk selection
 const selectedAssetIds = new Set();
 let lastCheckedIndex = null;
@@ -44,6 +45,7 @@ export async function init() {
     if (hasActiveFilters(urlState)) {
         selectedPersonIds = urlState.personIds;
         selectedEventIds = urlState.eventIds;
+        selectedPrecision = urlState.precision;
         document.getElementById('search-input').value = urlState.q;
         document.getElementById('filter-from').value = urlState.from;
         document.getElementById('filter-to').value = urlState.to;
@@ -63,7 +65,7 @@ async function renderPersonChips() {
         .map(id => {
         const p = allPeople.find(x => x.id === id);
         const name = p ? escHtml(p.name) : id;
-        return `<span class="filter-chip" data-id="${id}">${name}<button class="filter-chip-x" data-id="${id}">×</button></span>`;
+        return `<span class="filter-chip" data-id="${id}" title="${name}"><span class="filter-chip-label">${name}</span><button class="filter-chip-x" data-id="${id}">×</button></span>`;
     }).join('');
     // Update placeholder
     const input = document.getElementById('filter-person-input');
@@ -76,7 +78,7 @@ async function renderEventChips() {
         .map(id => {
         const e = allEvents.find(x => x.id === id);
         const title = e ? escHtml(e.title) : id;
-        return `<span class="filter-chip filter-chip-event" data-id="${id}">${title}<button class="filter-chip-x" data-id="${id}">×</button></span>`;
+        return `<span class="filter-chip filter-chip-event" data-id="${id}" title="${title}"><span class="filter-chip-label">${title}</span><button class="filter-chip-x" data-id="${id}">×</button></span>`;
     }).join('');
     const input = document.getElementById('filter-event-input');
     input.placeholder = selectedEventIds.length ? '' : 'Events';
@@ -549,7 +551,8 @@ async function bindOverlayTagging(asset) {
     peopleSearch.addEventListener('focus', () => showPeopleDropdown(''));
     peopleSearch.addEventListener('input', () => showPeopleDropdown(peopleSearch.value));
     function showPeopleDropdown(query) {
-        const q = query.toLowerCase().trim();
+        const rawQuery = query.trim();
+        const q = rawQuery.toLowerCase();
         const available = allPeople.filter(p => !taggedPeopleIds.has(p.id));
         const matches = q
             ? available.filter(p => p.name.toLowerCase().includes(q))
@@ -558,7 +561,7 @@ async function bindOverlayTagging(asset) {
             .map(p => `<button class="tag-dropdown-item" data-person-id="${p.id}">${escHtml(p.name)}</button>`)
             .join('');
         if (q && !matches.some(p => p.name.toLowerCase() === q)) {
-            html += `<button class="tag-dropdown-item tag-dropdown-create" data-create-person="${escHtml(q)}">+ Add "${escHtml(q)}"</button>`;
+            html += `<button class="tag-dropdown-item tag-dropdown-create" data-create-person="${escHtml(rawQuery)}">+ Add "${escHtml(rawQuery)}"</button>`;
         }
         if (!html) {
             html = `<div class="tag-dropdown-empty">Type a name to add</div>`;
@@ -901,6 +904,7 @@ function readFilterState() {
         eventIds: [...selectedEventIds],
         from: document.getElementById('filter-from').value,
         to: document.getElementById('filter-to').value,
+        precision: selectedPrecision,
     };
 }
 function bindFilters() {
@@ -948,6 +952,7 @@ function bindFilters() {
         to.value = '';
         selectedPersonIds = [];
         selectedEventIds = [];
+        selectedPrecision = '';
         renderFilterChips();
         applyFilters();
     });
@@ -1183,7 +1188,8 @@ async function openBulkTagModal() {
     pSearch.addEventListener('focus', () => showBulkPeople(''));
     pSearch.addEventListener('input', () => showBulkPeople(pSearch.value));
     function showBulkPeople(query) {
-        const q = query.toLowerCase().trim();
+        const rawQuery = query.trim();
+        const q = rawQuery.toLowerCase();
         const selected = new Set(bulkPeopleIds);
         const available = allPeople.filter(p => !selected.has(p.id));
         const matches = q ? available.filter(p => p.name.toLowerCase().includes(q)) : available;
@@ -1191,7 +1197,7 @@ async function openBulkTagModal() {
             .map(p => `<button class="tag-dropdown-item" data-pid="${p.id}">${escHtml(p.name)}</button>`)
             .join('');
         if (q && !matches.some(p => p.name.toLowerCase() === q)) {
-            html += `<button class="tag-dropdown-item tag-dropdown-create" data-create-name="${escHtml(q)}">+ Add "${escHtml(q)}"</button>`;
+            html += `<button class="tag-dropdown-item tag-dropdown-create" data-create-name="${escHtml(rawQuery)}">+ Add "${escHtml(rawQuery)}"</button>`;
         }
         if (!html)
             html = `<div class="tag-dropdown-empty">No people found</div>`;
@@ -1348,10 +1354,6 @@ export function destroy() {
 // ─── Util ─────────────────────────────────────────────────────────────────────
 function escHtml(s) {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-function capFirst(s) {
-    if (!s) return s;
-    return s.charAt(0).toUpperCase() + s.slice(1);
 }
 function showToast(message) {
     const existing = document.getElementById('toast');

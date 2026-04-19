@@ -15,10 +15,10 @@ export async function getEvents() {
 export function invalidatePeopleCache() { cachedPeople = null; }
 export function invalidateEventsCache() { cachedEvents = null; }
 export function hasActiveFilters(state) {
-    return !!(state.q || state.personIds.length || state.eventIds.length || state.from || state.to);
+    return !!(state.q || state.personIds.length || state.eventIds.length || state.from || state.to || state.precision);
 }
 export function clearFilterState() {
-    return { q: '', personIds: [], eventIds: [], from: '', to: '' };
+    return { q: '', personIds: [], eventIds: [], from: '', to: '', precision: '' };
 }
 // ─── URL param sync ───────────────────────────────────────────────────────────
 export function readFiltersFromURL() {
@@ -29,6 +29,7 @@ export function readFiltersFromURL() {
         eventIds: params.get('event')?.split(',').filter(Boolean) || [],
         from: params.get('from') || '',
         to: params.get('to') || '',
+        precision: params.get('precision') || '',
     };
 }
 export function pushFiltersToURL(state) {
@@ -43,8 +44,11 @@ export function pushFiltersToURL(state) {
         params.set('from', state.from);
     if (state.to)
         params.set('to', state.to);
+    if (state.precision)
+        params.set('precision', state.precision);
     const search = params.toString();
-    const url = search ? `?${search}` : window.location.pathname;
+    const hash = window.location.hash;
+    const url = (search ? `?${search}` : window.location.pathname) + hash;
     window.history.replaceState(null, '', url);
 }
 // ─── Filter status bar ───────────────────────────────────────────────────────
@@ -57,6 +61,10 @@ export async function updateFilterStatus(state, resultCount) {
     }
     statusEl.classList.remove('hidden');
     const parts = [];
+    if (state.precision === 'unknown')
+        parts.push('missing dates');
+    else if (state.precision)
+        parts.push(`precision: ${state.precision}`);
     if (state.q)
         parts.push(`"${state.q}"`);
     if (state.personIds.length) {
@@ -91,6 +99,8 @@ export async function executeSearch(state) {
         params.from = state.from;
     if (state.to)
         params.to = state.to;
+    if (state.precision)
+        params.precision = state.precision;
     let response;
     if (state.q) {
         response = await api.search({ q: state.q, ...params });

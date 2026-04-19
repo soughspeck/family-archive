@@ -26,14 +26,15 @@ export interface FilterState {
   eventIds: string[]
   from: string
   to: string
+  precision: string
 }
 
 export function hasActiveFilters(state: FilterState): boolean {
-  return !!(state.q || state.personIds.length || state.eventIds.length || state.from || state.to)
+  return !!(state.q || state.personIds.length || state.eventIds.length || state.from || state.to || state.precision)
 }
 
 export function clearFilterState(): FilterState {
-  return { q: '', personIds: [], eventIds: [], from: '', to: '' }
+  return { q: '', personIds: [], eventIds: [], from: '', to: '', precision: '' }
 }
 
 // ─── URL param sync ───────────────────────────────────────────────────────────
@@ -46,6 +47,7 @@ export function readFiltersFromURL(): FilterState {
     eventIds: params.get('event')?.split(',').filter(Boolean) || [],
     from: params.get('from') || '',
     to: params.get('to') || '',
+    precision: params.get('precision') || '',
   }
 }
 
@@ -56,8 +58,10 @@ export function pushFiltersToURL(state: FilterState): void {
   if (state.eventIds.length) params.set('event', state.eventIds.join(','))
   if (state.from) params.set('from', state.from)
   if (state.to) params.set('to', state.to)
+  if (state.precision) params.set('precision', state.precision)
   const search = params.toString()
-  const url = search ? `?${search}` : window.location.pathname
+  const hash = window.location.hash
+  const url = (search ? `?${search}` : window.location.pathname) + hash
   window.history.replaceState(null, '', url)
 }
 
@@ -75,6 +79,8 @@ export async function updateFilterStatus(state: FilterState, resultCount: number
   statusEl.classList.remove('hidden')
 
   const parts: string[] = []
+  if (state.precision === 'unknown') parts.push('missing dates')
+  else if (state.precision) parts.push(`precision: ${state.precision}`)
   if (state.q) parts.push(`"${state.q}"`)
 
   if (state.personIds.length) {
@@ -107,6 +113,7 @@ export async function executeSearch(state: FilterState): Promise<Asset[]> {
   if (state.eventIds.length) params.event = state.eventIds.join(',')
   if (state.from) params.from = state.from
   if (state.to) params.to = state.to
+  if (state.precision) params.precision = state.precision
 
   let response: AssetsResponse
 
