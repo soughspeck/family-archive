@@ -329,10 +329,10 @@ function renderAssetDetail(asset, full) {
     const taggedPeople = full?.people ?? [];
     const taggedEvents = full?.events ?? [];
     const peopleChips = taggedPeople
-        .map(p => `<span class="tag tag-removable" data-person-id="${p.id}">${escHtml(p.name)}<button class="tag-x" data-person-id="${p.id}" aria-label="Remove ${escHtml(p.name)}">×</button></span>`)
+        .map(p => `<span class="tag tag-removable" data-person-id="${p.id}"><span class="tag-label" data-person-id="${p.id}">${escHtml(p.name)}</span><button class="tag-x" data-person-id="${p.id}" aria-label="Remove ${escHtml(p.name)}">×</button></span>`)
         .join('');
     const eventChips = taggedEvents
-        .map(e => `<span class="tag event-tag tag-removable" data-event-id="${e.id}">${escHtml(e.title)}<button class="tag-x tag-x-event" data-event-id="${e.id}" aria-label="Remove ${escHtml(e.title)}">×</button></span>`)
+        .map(e => `<span class="tag event-tag tag-removable" data-event-id="${e.id}"><span class="tag-label tag-label-event" data-event-id="${e.id}">${escHtml(e.title)}</span><button class="tag-x tag-x-event" data-event-id="${e.id}" aria-label="Remove ${escHtml(e.title)}">×</button></span>`)
         .join('');
     const location = asset.location_name
         ? `<div class="asset-info-section">
@@ -595,15 +595,48 @@ async function bindOverlayTagging(asset) {
     async function savePeople() {
         await api.assets.update(asset.id, { person_ids: Array.from(taggedPeopleIds).join(',') });
     }
-    // Remove people chips
+    // Remove or edit people chips
     document.getElementById('people-chips').addEventListener('click', async (e) => {
-        const btn = e.target.closest('[data-person-id]');
-        if (!btn || !btn.classList.contains('tag-x'))
+        // Remove
+        const xBtn = e.target.closest('.tag-x');
+        if (xBtn?.dataset.personId) {
+            const pid = xBtn.dataset.personId;
+            taggedPeopleIds.delete(pid);
+            await savePeople();
+            xBtn.closest('.tag')?.remove();
             return;
-        const pid = btn.dataset.personId;
-        taggedPeopleIds.delete(pid);
-        await savePeople();
-        btn.closest('.tag')?.remove();
+        }
+        // Edit label
+        const label = e.target.closest('.tag-label');
+        if (!label?.dataset.personId) return;
+        const pid = label.dataset.personId;
+        const chip = label.closest('.tag');
+        const currentName = label.textContent;
+        label.style.display = 'none';
+        const input = document.createElement('input');
+        input.className = 'tag-edit-input';
+        input.value = currentName;
+        chip.insertBefore(input, label);
+        input.focus();
+        input.select();
+        async function commitEdit() {
+            const newName = input.value.trim();
+            input.remove();
+            label.style.display = '';
+            if (!newName || newName === currentName) return;
+            try {
+                await api.people.update(pid, { name: newName });
+                label.textContent = newName;
+                const cached = allPeople.find(p => p.id === pid);
+                if (cached) cached.name = newName;
+                invalidatePeopleCache();
+            } catch { label.textContent = currentName; }
+        }
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
+            if (e.key === 'Escape') { input.remove(); label.style.display = ''; }
+        });
+        input.addEventListener('blur', commitEdit);
     });
     // ── Event tagging ──
     const eventSearch = document.getElementById('event-search');
@@ -671,15 +704,48 @@ async function bindOverlayTagging(asset) {
         const ids = Array.from(taggedEventIds);
         await api.assets.update(asset.id, { event_id: ids[0] || '' });
     }
-    // Remove event chips
+    // Remove or edit event chips
     document.getElementById('event-chips').addEventListener('click', async (e) => {
-        const btn = e.target.closest('[data-event-id]');
-        if (!btn || !btn.classList.contains('tag-x'))
+        // Remove
+        const xBtn = e.target.closest('.tag-x');
+        if (xBtn?.dataset.eventId) {
+            const eid = xBtn.dataset.eventId;
+            taggedEventIds.delete(eid);
+            await saveEvent();
+            xBtn.closest('.tag')?.remove();
             return;
-        const eid = btn.dataset.eventId;
-        taggedEventIds.delete(eid);
-        await saveEvent();
-        btn.closest('.tag')?.remove();
+        }
+        // Edit label
+        const label = e.target.closest('.tag-label-event');
+        if (!label?.dataset.eventId) return;
+        const eid = label.dataset.eventId;
+        const chip = label.closest('.tag');
+        const currentTitle = label.textContent;
+        label.style.display = 'none';
+        const input = document.createElement('input');
+        input.className = 'tag-edit-input tag-edit-input-event';
+        input.value = currentTitle;
+        chip.insertBefore(input, label);
+        input.focus();
+        input.select();
+        async function commitEdit() {
+            const newTitle = input.value.trim();
+            input.remove();
+            label.style.display = '';
+            if (!newTitle || newTitle === currentTitle) return;
+            try {
+                await api.events.update(eid, { title: newTitle });
+                label.textContent = newTitle;
+                const cached = allEvents.find(ev => ev.id === eid);
+                if (cached) cached.title = newTitle;
+                invalidateEventsCache();
+            } catch { label.textContent = currentTitle; }
+        }
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
+            if (e.key === 'Escape') { input.remove(); label.style.display = ''; }
+        });
+        input.addEventListener('blur', commitEdit);
     });
     // Close dropdowns on click outside
     document.addEventListener('click', (e) => {
@@ -777,7 +843,8 @@ function addChip(type, id, label) {
     const chip = document.createElement('span');
     chip.className = tagClass;
     chip.dataset[type === 'people' ? 'personId' : 'eventId'] = id;
-    chip.innerHTML = `${escHtml(label)}<button class="${xClass}" data-${idAttr}="${id}" aria-label="Remove ${escHtml(label)}">×</button>`;
+    const labelClass = type === 'event' ? 'tag-label tag-label-event' : 'tag-label';
+    chip.innerHTML = `<span class="${labelClass}" data-${idAttr}="${id}">${escHtml(label)}</span><button class="${xClass}" data-${idAttr}="${id}" aria-label="Remove ${escHtml(label)}">×</button>`;
     container.appendChild(chip);
 }
 function bindImageZoom() {

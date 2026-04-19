@@ -52,10 +52,12 @@ export const api = {
     people: {
         list: () => get('/people'),
         create: (data) => post('/people', data),
+        update: (id, data) => patch(`/people/${id}`, data),
     },
     events: {
         list: () => get('/events'),
         create: (data) => post('/events', data),
+        update: (id, data) => patch(`/events/${id}`, data),
     },
     search: (params) => get('/search', params),
     dashboard: {
