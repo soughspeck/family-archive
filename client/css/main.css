@@ -91,6 +91,8 @@ a { color: var(--accent); }
   letter-spacing: -0.02em;
   white-space: nowrap;
   width: 100%;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 /* ─── Tab navigation ────────────────────────────────────────────────────────── */
@@ -888,6 +890,11 @@ a { color: var(--accent); }
   min-height: 220px;
   overflow: hidden;
   position: relative;
+}
+
+@media (max-width: 639px) {
+  .asset-media { flex: 0 1 50%; min-height: 0; }
+  .overlay-nav { top: 25%; }
 }
 
 .zoom-wrap {
