@@ -15,6 +15,7 @@ let searchTimeout: ReturnType<typeof setTimeout> | null = null
 // Filter chip selections
 let selectedPersonIds: string[] = []
 let selectedEventIds: string[] = []
+let selectedPrecision: string = ''
 
 // Bulk selection
 const selectedAssetIds = new Set<string>()
@@ -846,6 +847,7 @@ function readFilterState(): FilterState {
     eventIds: [...selectedEventIds],
     from: (document.getElementById('filter-from') as HTMLInputElement).value,
     to: (document.getElementById('filter-to') as HTMLInputElement).value,
+    precision: selectedPrecision,
   }
 }
 

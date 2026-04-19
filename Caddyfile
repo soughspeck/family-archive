@@ -1,0 +1,21 @@
+# Caddyfile — place this at /etc/caddy/Caddyfile on the VPS
+# Caddy auto-provisions HTTPS via Let's Encrypt.
+# Replace YOUR_DOMAIN with your actual domain, e.g. archive.family.com
+
+YOUR_DOMAIN {
+    reverse_proxy localhost:3000
+
+    # Increase timeout for large file uploads
+    request_body {
+        max_size 600MB
+    }
+
+    # Cache static assets (JS/CSS) but not API responses
+    @static {
+        path /js/* /css/* /icons/* /fonts/*
+    }
+    header @static Cache-Control "public, max-age=3600"
+
+    # Compress responses
+    encode gzip
+}

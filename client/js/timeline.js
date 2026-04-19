@@ -1,4 +1,4 @@
-import { api, thumbnailUrl, formatDate, mimeIcon } from './api.js';
+import { api, thumbnailUrl, originalUrl, formatDate, mimeIcon } from './api.js';
 import { getPeople, getEvents, invalidatePeopleCache, invalidateEventsCache, readFiltersFromURL, pushFiltersToURL, hasActiveFilters, updateFilterStatus, executeSearch, } from './search.js';
 // ─── State ────────────────────────────────────────────────────────────────────
 let filteredAssets = [];
@@ -292,7 +292,7 @@ async function renderOverlay() {
 }
 function renderAssetDetail(asset, full) {
     const mime = asset.mime_type || '';
-    const origUrl = asset.local_path ? `/uploads/${asset.local_path}` : null;
+    const origUrl = originalUrl(asset);
     const thumbUrl = thumbnailUrl(asset);
     let mediaHtml = '';
     if (mime.startsWith('image/') && origUrl) {

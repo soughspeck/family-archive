@@ -44,6 +44,12 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true, app: config.appName, ts: new Date().toISOString() })
 })
 
+// ─── Client config ────────────────────────────────────────────────────────────
+// Exposes safe, non-secret values the client needs (e.g. media base URL)
+app.get('/api/client-config', (req, res) => {
+  res.json({ mediaBaseUrl: config.mediaBaseUrl })
+})
+
 // ─── SPA fallback ─────────────────────────────────────────────────────────────
 app.get('*', (req, res) => {
   res.sendFile(path.join(clientDir, 'index.html'))

@@ -64,16 +64,28 @@ export const api = {
         stats: () => get('/dashboard/stats'),
     },
 };
+// ─── Media base URL (fetched once from server, falls back to /uploads) ────────
+let _mediaBaseUrl = '/uploads';
+export async function initMediaBaseUrl() {
+    try {
+        const cfg = await get('/client-config');
+        if (cfg.mediaBaseUrl) _mediaBaseUrl = cfg.mediaBaseUrl.replace(/\/$/, '');
+    } catch { /* keep default */ }
+}
+export function mediaUrl(key) {
+    if (!key) return null;
+    // Already a full URL (e.g. R2 CDN link stored in DB)
+    if (key.startsWith('http')) return key;
+    return `${_mediaBaseUrl}/${key}`;
+}
 // ─── URL helpers ──────────────────────────────────────────────────────────────
 export function thumbnailUrl(asset) {
-    if (!asset.thumbnail_path)
-        return null;
-    return `/uploads/${asset.thumbnail_path}`;
+    if (!asset.thumbnail_path) return null;
+    return mediaUrl(asset.thumbnail_path);
 }
 export function originalUrl(asset) {
-    if (!asset.local_path)
-        return null;
-    return `/uploads/${asset.local_path}`;
+    if (!asset.local_path) return null;
+    return mediaUrl(asset.local_path);
 }
 export function formatDate(asset) {
     if (!asset.taken_at)

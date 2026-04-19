@@ -1,33 +1,48 @@
 import path from 'path'
 import fs from 'fs'
+import os from 'os'
 import { config } from '../config'
+import { uploadFile } from '../storage'
 
 export async function generateThumbnail(
   filePath: string,
   assetId: string,
-  mimeType: string
+  mimeType: string,
+  uploadToStorage = false
 ): Promise<string | null> {
   try {
-    const thumbDir = path.join(config.uploadsDir, 'thumbnails')
-    fs.mkdirSync(thumbDir, { recursive: true })
-
     const thumbFilename = `${assetId}_thumb.webp`
-    const thumbPath = path.join(thumbDir, thumbFilename)
-    const relPath = path.join('thumbnails', thumbFilename)
+    const thumbKey = path.join('thumbnails', thumbFilename)
 
     if (mimeType.startsWith('image/')) {
       const sharp = (await import('sharp')).default
-      await sharp(filePath)
-        .rotate()           // auto-rotate based on EXIF orientation
-        .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: 75 })
-        .toFile(thumbPath)
-      return relPath
+
+      if (uploadToStorage) {
+        // Write to a temp file, upload, then clean up
+        const tmpPath = path.join(os.tmpdir(), thumbFilename)
+        await sharp(filePath)
+          .rotate()
+          .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
+          .webp({ quality: 75 })
+          .toFile(tmpPath)
+        await uploadFile(thumbKey, tmpPath, 'image/webp')
+        fs.unlinkSync(tmpPath)
+      } else {
+        // Write directly to local uploads/thumbnails/
+        const thumbDir = path.join(config.uploadsDir, 'thumbnails')
+        fs.mkdirSync(thumbDir, { recursive: true })
+        const thumbPath = path.join(thumbDir, thumbFilename)
+        await sharp(filePath)
+          .rotate()
+          .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
+          .webp({ quality: 75 })
+          .toFile(thumbPath)
+      }
+
+      return thumbKey
     }
 
     if (mimeType.startsWith('video/')) {
-      // Stub — in a real implementation you'd use ffmpeg here
-      // For MVP, videos get no thumbnail (handled gracefully in UI)
       console.log(`[thumbnail] video thumbnail not yet implemented for ${assetId}`)
       return null
     }

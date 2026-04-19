@@ -5,6 +5,7 @@ import fs from 'fs'
 import { v4 as uuid } from 'uuid'
 import { getDb } from '../db/db'
 import { config } from '../config'
+import { uploadFile, deleteFile } from '../storage'
 import { extractExif, inferDatePrecision } from '../jobs/exif'
 import { generateThumbnail } from '../jobs/thumbnail'
 import { populateTaggingQueue } from '../jobs/queue'
@@ -13,20 +14,24 @@ import { updateSearchIndex } from '../jobs/search'
 export const assetsRouter = Router()
 
 // ─── Multer setup ─────────────────────────────────────────────────────────────
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(config.uploadsDir, 'originals')
-    fs.mkdirSync(dir, { recursive: true })
-    cb(null, dir)
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname)
-    cb(null, `${uuid()}${ext}`)
-  }
-})
+// In dev: write directly to disk (fast, no memory pressure).
+// In prod (R2): buffer in memory so we can stream to R2.
+const multerStorage = config.useR2
+  ? multer.memoryStorage()
+  : multer.diskStorage({
+      destination: (req, file, cb) => {
+        const dir = path.join(config.uploadsDir, 'originals')
+        fs.mkdirSync(dir, { recursive: true })
+        cb(null, dir)
+      },
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname)
+        cb(null, `${uuid()}${ext}`)
+      },
+    })
 
 const upload = multer({
-  storage,
+  storage: multerStorage,
   limits: { fileSize: 500 * 1024 * 1024 }, // 500MB max
 })
 
@@ -129,46 +134,72 @@ assetsRouter.post('/upload', upload.array('files'), async (req: Request, res: Re
 
   for (const file of files) {
     const assetId = uuid()
-    const localPath = path.relative(config.uploadsDir, file.path)
+    const ext = path.extname(file.originalname)
+    const filename = `${assetId}${ext}`
+    const storageKey = `originals/${filename}`
     const mimeType = file.mimetype
 
-    // Extract EXIF
-    const exif = await extractExif(file.path, mimeType)
+    // In R2 mode, file.buffer holds the bytes; in disk mode, file.path is set.
+    // Write a temp file for EXIF extraction and thumbnail generation if needed.
+    let workingPath: string = file.path  // disk mode path
+    let tempFileCreated = false
+    let takenAt: string | null = null
 
-    // Date resolution — manual overrides auto
-    const takenAt = taken_at_manual || exif.takenAt || null
-    const takenAtSource = taken_at_manual ? 'manual' : (exif.takenAt ? exif.takenAtSource : null)
-    const datePrecision = date_precision_manual ||
-      (takenAt ? inferDatePrecision(takenAt, takenAtSource) : 'unknown')
+    if (config.useR2) {
+      // Write buffer to a temp file so EXIF / sharp can read it
+      workingPath = path.join(config.uploadsDir, 'tmp', filename)
+      fs.mkdirSync(path.dirname(workingPath), { recursive: true })
+      fs.writeFileSync(workingPath, file.buffer!)
+      tempFileCreated = true
+    }
 
-    // Thumbnail
-    const thumbPath = await generateThumbnail(file.path, assetId, mimeType)
+    try {
+      // Extract EXIF
+      const exif = await extractExif(workingPath, mimeType)
 
-    // Insert asset
-    db.prepare(`
-      INSERT INTO assets (
-        id, filename, original_name, mime_type, file_size,
-        local_path, thumbnail_path,
-        taken_at, taken_at_source, date_precision,
-        width, height, duration_s, orientation,
-        latitude, longitude,
-        contributed_by, source_id, notes
-      ) VALUES (
-        ?, ?, ?, ?, ?,
-        ?, ?,
-        ?, ?, ?,
-        ?, ?, ?, ?,
-        ?, ?,
-        ?, ?, ?
+      // Date resolution — manual overrides auto
+      takenAt = taken_at_manual || exif.takenAt || null
+      const takenAtSource = taken_at_manual ? 'manual' : (exif.takenAt ? exif.takenAtSource : null)
+      const datePrecision = date_precision_manual ||
+        (takenAt ? inferDatePrecision(takenAt, takenAtSource) : 'unknown')
+
+      // Upload original to storage
+      await uploadFile(storageKey, config.useR2 ? file.buffer! : workingPath, mimeType)
+
+      // Thumbnail — generates a local temp file, then we upload it
+      const thumbKey = await generateThumbnail(workingPath, assetId, mimeType, config.useR2)
+
+      // Insert asset — store storage keys (not local paths)
+      db.prepare(`
+        INSERT INTO assets (
+          id, filename, original_name, mime_type, file_size,
+          local_path, thumbnail_path,
+          taken_at, taken_at_source, date_precision,
+          width, height, duration_s, orientation,
+          latitude, longitude,
+          contributed_by, source_id, notes
+        ) VALUES (
+          ?, ?, ?, ?, ?,
+          ?, ?,
+          ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, ?,
+          ?, ?, ?
+        )
+      `).run(
+        assetId, filename, file.originalname, mimeType, file.size,
+        storageKey, thumbKey,
+        takenAt, takenAtSource, datePrecision,
+        exif.width || null, exif.height || null, exif.duration || null, exif.orientation || null,
+        exif.latitude || null, exif.longitude || null,
+        contributed_by, source_id || null, notes || null
       )
-    `).run(
-      assetId, file.filename, file.originalname, mimeType, file.size,
-      localPath, thumbPath,
-      takenAt, takenAtSource, datePrecision,
-      exif.width || null, exif.height || null, exif.duration || null, exif.orientation || null,
-      exif.latitude || null, exif.longitude || null,
-      contributed_by, source_id || null, notes || null
-    )
+    } finally {
+      // Clean up temp file in R2 mode
+      if (tempFileCreated && fs.existsSync(workingPath)) {
+        fs.unlinkSync(workingPath)
+      }
+    }
 
     // Link people
     if (person_ids) {
@@ -195,7 +226,7 @@ assetsRouter.post('/upload', upload.array('files'), async (req: Request, res: Re
     // Update search index
     updateSearchIndex(assetId)
 
-    results.push({ id: assetId, filename: file.filename, original: file.originalname })
+    results.push({ id: assetId, filename, original: file.originalname })
   }
 
   res.json({ uploaded: results.length, assets: results })
@@ -259,20 +290,14 @@ assetsRouter.patch('/:id', (req: Request, res: Response) => {
 })
 
 // ─── DELETE /api/assets/:id ───────────────────────────────────────────────────
-assetsRouter.delete('/:id', (req: Request, res: Response) => {
+assetsRouter.delete('/:id', async (req: Request, res: Response) => {
   const db = getDb()
   const asset = db.prepare('SELECT * FROM assets WHERE id = ?').get(req.params.id) as any
   if (!asset) return res.status(404).json({ error: 'Not found' })
 
-  // Delete physical files
-  if (asset.local_path) {
-    const fullPath = path.join(config.uploadsDir, asset.local_path)
-    if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath)
-  }
-  if (asset.thumbnail_path) {
-    const thumbFull = path.join(config.uploadsDir, asset.thumbnail_path)
-    if (fs.existsSync(thumbFull)) fs.unlinkSync(thumbFull)
-  }
+  // Delete files from storage (local or R2)
+  if (asset.local_path) await deleteFile(asset.local_path)
+  if (asset.thumbnail_path) await deleteFile(asset.thumbnail_path)
 
   db.prepare('DELETE FROM asset_people WHERE asset_id = ?').run(req.params.id)
   db.prepare('DELETE FROM asset_events WHERE asset_id = ?').run(req.params.id)
