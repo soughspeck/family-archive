@@ -28,8 +28,8 @@ export async function init() {
           <input type="text" class="filter-chip-input" id="filter-event-input" placeholder="Events" autocomplete="off">
           <div class="tag-dropdown hidden" id="filter-event-dropdown"></div>
         </div>
-        <input type="number" class="filter-year" id="filter-from" placeholder="From year">
-        <input type="number" class="filter-year" id="filter-to" placeholder="To year">
+        <select class="filter-year" id="filter-from"><option value="">From</option></select>
+        <select class="filter-year" id="filter-to"><option value="">To</option></select>
         <div class="filter-actions">
           <button class="btn btn-small btn-primary" id="search-btn">Search</button>
           <button class="btn btn-small btn-ghost hidden" id="clear-filters">Clear</button>
@@ -1124,6 +1124,26 @@ function bindChipSelect(cfg) {
         }
     });
 }
+let yearSelectsPopulated = false;
+function populateYearSelects(assets) {
+    if (yearSelectsPopulated) return;
+    const years = [...new Set(
+        assets
+            .map(a => a.taken_at?.substring(0, 4))
+            .filter(y => y && /^\d{4}$/.test(y))
+    )].sort();
+    if (!years.length) return;
+    const fromSel = document.getElementById('filter-from');
+    const toSel = document.getElementById('filter-to');
+    if (!fromSel || !toSel) return;
+    const fromVal = fromSel.value;
+    const toVal = toSel.value;
+    fromSel.innerHTML = '<option value="">From</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
+    toSel.innerHTML = '<option value="">To</option>' + [...years].reverse().map(y => `<option value="${y}">${y}</option>`).join('');
+    if (fromVal) fromSel.value = fromVal;
+    if (toVal) toSel.value = toVal;
+    yearSelectsPopulated = true;
+}
 async function applyFilters() {
     const state = readFilterState();
     const isFiltered = hasActiveFilters(state);
@@ -1133,6 +1153,7 @@ async function applyFilters() {
     content.innerHTML = `<div class="state-loading">${state.q ? 'Searching…' : 'Loading memories…'}</div>`;
     try {
         filteredAssets = await executeSearch(state);
+        populateYearSelects(filteredAssets);
         await updateFilterStatus(state, filteredAssets.length);
         renderTimeline(filteredAssets, isFiltered);
     }
@@ -1416,6 +1437,7 @@ async function openBulkTagModal() {
 export function destroy() {
     selectedAssetIds.clear();
     lastCheckedIndex = null;
+    yearSelectsPopulated = false;
     document.getElementById('selection-bar')?.remove();
 }
 // ─── Util ─────────────────────────────────────────────────────────────────────
