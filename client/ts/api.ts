@@ -8,6 +8,7 @@ export interface Asset {
   file_size: number | null
   local_path: string | null
   thumbnail_path: string | null
+  display_path: string | null
   taken_at: string | null
   taken_at_source: string | null
   date_precision: string
@@ -152,16 +153,32 @@ export const api = {
   },
 }
 
+// ─── Media base URL (fetched once from server, falls back to /uploads) ────────
+
+let _mediaBaseUrl = '/uploads'
+
+export async function initMediaBaseUrl(): Promise<void> {
+  try {
+    const cfg = await get<{ mediaBaseUrl: string }>('/client-config')
+    if (cfg.mediaBaseUrl) _mediaBaseUrl = cfg.mediaBaseUrl.replace(/\/$/, '')
+  } catch { /* keep default */ }
+}
+
+export function mediaUrl(key: string | null): string | null {
+  if (!key) return null
+  if (key.startsWith('http')) return key
+  return `${_mediaBaseUrl}/${key}`
+}
+
 // ─── URL helpers ──────────────────────────────────────────────────────────────
 
 export function thumbnailUrl(asset: Asset): string | null {
-  if (!asset.thumbnail_path) return null
-  return `/uploads/${asset.thumbnail_path}`
+  return mediaUrl(asset.thumbnail_path)
 }
 
+// Prefer display_path (browser-compatible JPEG for HEIC files); fall back to local_path
 export function originalUrl(asset: Asset): string | null {
-  if (!asset.local_path) return null
-  return `/uploads/${asset.local_path}`
+  return mediaUrl(asset.display_path || asset.local_path)
 }
 
 export function formatDate(asset: Asset): string {

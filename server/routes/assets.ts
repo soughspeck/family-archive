@@ -7,11 +7,36 @@ import { getDb } from '../db/db'
 import { config } from '../config'
 import { uploadFile, deleteFile } from '../storage'
 import { extractExif, inferDatePrecision } from '../jobs/exif'
-import { generateThumbnail } from '../jobs/thumbnail'
+import { generateThumbnail, generateDisplayJpeg, isHeic } from '../jobs/thumbnail'
 import { populateTaggingQueue } from '../jobs/queue'
 import { updateSearchIndex } from '../jobs/search'
 
 export const assetsRouter = Router()
+
+// Browsers send 'application/octet-stream' for formats they don't recognise (e.g. HEIC on Chrome).
+// Map common extensions to their correct MIME types.
+const EXT_MIME: Record<string, string> = {
+  '.heic': 'image/heic',
+  '.heif': 'image/heif',
+  '.jpg':  'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png':  'image/png',
+  '.webp': 'image/webp',
+  '.gif':  'image/gif',
+  '.avif': 'image/avif',
+  '.mp4':  'video/mp4',
+  '.mov':  'video/quicktime',
+  '.avi':  'video/x-msvideo',
+  '.mp3':  'audio/mpeg',
+  '.m4a':  'audio/mp4',
+  '.wav':  'audio/wav',
+}
+
+function normalizeMimeType(reported: string, filename: string): string {
+  if (reported && reported !== 'application/octet-stream') return reported
+  const ext = path.extname(filename).toLowerCase()
+  return EXT_MIME[ext] ?? reported
+}
 
 // ─── Multer setup ─────────────────────────────────────────────────────────────
 // In dev: write directly to disk (fast, no memory pressure).
@@ -137,7 +162,10 @@ assetsRouter.post('/upload', upload.array('files'), async (req: Request, res: Re
     const ext = path.extname(file.originalname)
     const filename = `${assetId}${ext}`
     const storageKey = `originals/${filename}`
-    const mimeType = file.mimetype
+
+    // Browsers often send 'application/octet-stream' for formats they don't know (e.g. HEIC).
+    // Normalize to the correct MIME type based on file extension.
+    const mimeType = normalizeMimeType(file.mimetype, file.originalname)
 
     // In R2 mode, file.buffer holds the bytes; in disk mode, file.path is set.
     // Write a temp file for EXIF extraction and thumbnail generation if needed.
@@ -169,18 +197,23 @@ assetsRouter.post('/upload', upload.array('files'), async (req: Request, res: Re
       // Thumbnail — generates a local temp file, then we upload it
       const thumbKey = await generateThumbnail(workingPath, assetId, mimeType, config.useR2)
 
+      // HEIC/HEIF → JPEG for browser display (Chrome/Firefox can't render HEIC natively)
+      const displayKey = isHeic(mimeType)
+        ? await generateDisplayJpeg(workingPath, assetId, config.useR2)
+        : null
+
       // Insert asset — store storage keys (not local paths)
       db.prepare(`
         INSERT INTO assets (
           id, filename, original_name, mime_type, file_size,
-          local_path, thumbnail_path,
+          local_path, thumbnail_path, display_path,
           taken_at, taken_at_source, date_precision,
           width, height, duration_s, orientation,
           latitude, longitude,
           contributed_by, source_id, notes
         ) VALUES (
           ?, ?, ?, ?, ?,
-          ?, ?,
+          ?, ?, ?,
           ?, ?, ?,
           ?, ?, ?, ?,
           ?, ?,
@@ -188,7 +221,7 @@ assetsRouter.post('/upload', upload.array('files'), async (req: Request, res: Re
         )
       `).run(
         assetId, filename, file.originalname, mimeType, file.size,
-        storageKey, thumbKey,
+        storageKey, thumbKey, displayKey,
         takenAt, takenAtSource, datePrecision,
         exif.width || null, exif.height || null, exif.duration || null, exif.orientation || null,
         exif.latitude || null, exif.longitude || null,

@@ -83,9 +83,11 @@ export function thumbnailUrl(asset) {
     if (!asset.thumbnail_path) return null;
     return mediaUrl(asset.thumbnail_path);
 }
+// Prefer display_path (browser-compatible JPEG for HEIC files); fall back to local_path
 export function originalUrl(asset) {
-    if (!asset.local_path) return null;
-    return mediaUrl(asset.local_path);
+    const key = asset.display_path || asset.local_path;
+    if (!key) return null;
+    return mediaUrl(key);
 }
 export function formatDate(asset) {
     if (!asset.taken_at)

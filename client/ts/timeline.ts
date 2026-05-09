@@ -151,6 +151,17 @@ function renderTimeline(assets: Asset[], isFiltered: boolean): void {
 
   const html: string[] = []
 
+  // Undated section — shown first so it's immediately visible and actionable
+  if (undated.length > 0) {
+    html.push(`
+      <div class="undated-section">
+        <div class="undated-header">Undated &amp; Approximate (${undated.length})</div>
+        <div class="thumb-grid">
+          ${undated.map(a => thumbHtml(a)).join('')}
+        </div>
+      </div>`)
+  }
+
   for (const year of sortedYears) {
     const months = byYear.get(year)!
     const yearCount = Array.from(months.values()).reduce((s, m) => s + m.length, 0)
@@ -179,17 +190,6 @@ function renderTimeline(assets: Asset[], isFiltered: boolean): void {
     }
 
     html.push('</div>')
-  }
-
-  // Undated section
-  if (undated.length > 0) {
-    html.push(`
-      <div class="undated-section">
-        <div class="undated-header">Undated &amp; Approximate (${undated.length})</div>
-        <div class="thumb-grid">
-          ${undated.map(a => thumbHtml(a)).join('')}
-        </div>
-      </div>`)
   }
 
   content.innerHTML = html.join('')
