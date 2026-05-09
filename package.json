@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "tsx watch server/index.ts",
     "dev:client": "tsc --watch --project tsconfig.client.json",
-    "build": "tsc && tsc --project tsconfig.client.json",
+    "build": "tsc && tsc --project tsconfig.client.json && cp -r server/db/migrations dist/server/db/migrations",
     "build:client": "tsc --project tsconfig.client.json",
     "start": "node dist/server/index.js",
     "db:migrate": "tsx server/db/migrate.ts"
