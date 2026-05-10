@@ -17,7 +17,6 @@ export async function init() {
     app.innerHTML = `
     <div class="timeline-filters">
       <div class="filter-row">
-        <input type="text" class="search-input" id="search-input" placeholder="Search…">
         <div class="filter-chip-select" id="filter-person-wrap">
           <div class="filter-chip-chips" id="filter-person-chips"></div>
           <input type="text" class="filter-chip-input" id="filter-person-input" placeholder="People" autocomplete="off">
@@ -28,14 +27,14 @@ export async function init() {
           <input type="text" class="filter-chip-input" id="filter-event-input" placeholder="Events" autocomplete="off">
           <div class="tag-dropdown hidden" id="filter-event-dropdown"></div>
         </div>
-        <select class="filter-year" id="filter-from"><option value="">From</option></select>
-        <select class="filter-year" id="filter-to"><option value="">To</option></select>
-        <div class="filter-actions">
-          <button class="btn btn-small btn-primary" id="search-btn">Search</button>
-          <button class="btn btn-small btn-ghost hidden" id="clear-filters">Clear</button>
-        </div>
+        <input type="number" class="filter-year" id="filter-from" placeholder="From year">
+        <input type="number" class="filter-year" id="filter-to" placeholder="To year">
+        <div class="search-input-wrap"><svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+<path d="M22.2069 20.7929L16.3141 14.8999C17.5655 13.2888 18.1557 11.2614 17.9647 9.23038C17.7737 7.19937 16.8158 5.31752 15.286 3.96799C13.7562 2.61845 11.7696 1.90269 9.73062 1.96645C7.69165 2.0302 5.75363 2.86868 4.31115 4.31115C2.86868 5.75363 2.0302 7.69165 1.96645 9.73062C1.90269 11.7696 2.61845 13.7562 3.96799 15.286C5.31752 16.8158 7.19937 17.7737 9.23038 17.9647C11.2614 18.1557 13.2888 17.5655 14.8999 16.3141L20.7929 22.2069L22.2069 20.7929ZM9.99994 15.9999C8.81325 15.9999 7.65322 15.648 6.66652 14.9888C5.67983 14.3295 4.91079 13.3924 4.45667 12.296C4.00254 11.1997 3.88372 9.99329 4.11523 8.8294C4.34674 7.66551 4.91819 6.59642 5.7573 5.7573C6.59642 4.91819 7.66551 4.34674 8.8294 4.11523C9.99329 3.88372 11.1997 4.00254 12.296 4.45667C13.3924 4.91079 14.3295 5.67983 14.9888 6.66652C15.648 7.65322 15.9999 8.81325 15.9999 9.99994C15.9981 11.5907 15.3654 13.1158 14.2406 14.2406C13.1158 15.3654 11.5907 15.9981 9.99994 15.9999Z" fill="currentColor"/>
+</svg><input type="text" class="search-input" id="search-input" placeholder="Search…"></div>
+        <a class="filter-clear hidden" id="clear-filters" href="#">Clear filters</a>
       </div>
-      <div class="filter-status hidden" id="filter-status"><span id="filter-status-text"></span></div>
+      <div class="filter-status" id="filter-status"></div>
     </div>
     <div id="timeline-content"><div class="state-loading">Loading…</div></div>`;
     // Preload cached data
@@ -45,7 +44,6 @@ export async function init() {
     if (hasActiveFilters(urlState)) {
         selectedPersonIds = urlState.personIds;
         selectedEventIds = urlState.eventIds;
-        selectedPrecision = urlState.precision;
         document.getElementById('search-input').value = urlState.q;
         document.getElementById('filter-from').value = urlState.from;
         document.getElementById('filter-to').value = urlState.to;
@@ -65,7 +63,7 @@ async function renderPersonChips() {
         .map(id => {
         const p = allPeople.find(x => x.id === id);
         const name = p ? escHtml(p.name) : id;
-        return `<span class="filter-chip" data-id="${id}" title="${name}"><span class="filter-chip-label">${name}</span><button class="filter-chip-x" data-id="${id}">×</button></span>`;
+        return `<span class="filter-chip" data-id="${id}">${name}<button class="filter-chip-x" data-id="${id}">×</button></span>`;
     }).join('');
     // Update placeholder
     const input = document.getElementById('filter-person-input');
@@ -78,7 +76,7 @@ async function renderEventChips() {
         .map(id => {
         const e = allEvents.find(x => x.id === id);
         const title = e ? escHtml(e.title) : id;
-        return `<span class="filter-chip filter-chip-event" data-id="${id}" title="${title}"><span class="filter-chip-label">${title}</span><button class="filter-chip-x" data-id="${id}">×</button></span>`;
+        return `<span class="filter-chip filter-chip-event" data-id="${id}">${title}<button class="filter-chip-x" data-id="${id}">×</button></span>`;
     }).join('');
     const input = document.getElementById('filter-event-input');
     input.placeholder = selectedEventIds.length ? '' : 'Events';
@@ -266,10 +264,6 @@ function openOverlay(index) {
 function closeOverlay() {
     document.getElementById('asset-overlay').classList.add('hidden');
     document.body.style.overflow = '';
-    closeMenuDropdown();
-}
-function closeMenuDropdown() {
-    document.getElementById('overlay-menu-dropdown')?.classList.add('hidden');
 }
 async function renderOverlay() {
     const asset = filteredAssets[currentIndex];
@@ -296,26 +290,10 @@ function renderAssetDetail(asset, full) {
     const thumbUrl = thumbnailUrl(asset);
     let mediaHtml = '';
     if (mime.startsWith('image/') && origUrl) {
-        mediaHtml = `
-      <div class="zoom-wrap" id="zoom-wrap">
-        <img src="${origUrl}" alt="${escHtml(asset.original_name || '')}" loading="lazy" id="zoom-img" draggable="false">
-      </div>
-      <div class="zoom-controls">
-        <button class="zoom-btn" id="zoom-out" title="Zoom out">−</button>
-        <span class="zoom-level" id="zoom-level">100%</span>
-        <button class="zoom-btn" id="zoom-in" title="Zoom in">+</button>
-      </div>`;
+        mediaHtml = `<img src="${origUrl}" alt="${escHtml(asset.original_name || '')}" loading="lazy">`;
     }
     else if (mime.startsWith('image/') && thumbUrl) {
-        mediaHtml = `
-      <div class="zoom-wrap" id="zoom-wrap">
-        <img src="${thumbUrl}" alt="${escHtml(asset.original_name || '')}" id="zoom-img" draggable="false">
-      </div>
-      <div class="zoom-controls">
-        <button class="zoom-btn" id="zoom-out" title="Zoom out">−</button>
-        <span class="zoom-level" id="zoom-level">100%</span>
-        <button class="zoom-btn" id="zoom-in" title="Zoom in">+</button>
-      </div>`;
+        mediaHtml = `<img src="${thumbUrl}" alt="${escHtml(asset.original_name || '')}">`;
     }
     else if (mime.startsWith('video/') && origUrl) {
         mediaHtml = `<video src="${origUrl}" controls preload="metadata"></video>`;
@@ -329,10 +307,10 @@ function renderAssetDetail(asset, full) {
     const taggedPeople = full?.people ?? [];
     const taggedEvents = full?.events ?? [];
     const peopleChips = taggedPeople
-        .map(p => `<span class="tag tag-removable" data-person-id="${p.id}"><span class="tag-label" data-person-id="${p.id}">${escHtml(p.name)}</span><button class="tag-x" data-person-id="${p.id}" aria-label="Remove ${escHtml(p.name)}">×</button></span>`)
+        .map(p => `<span class="tag tag-removable" data-person-id="${p.id}">${escHtml(p.name)}<button class="tag-x" data-person-id="${p.id}" aria-label="Remove ${escHtml(p.name)}">×</button></span>`)
         .join('');
     const eventChips = taggedEvents
-        .map(e => `<span class="tag event-tag tag-removable" data-event-id="${e.id}"><span class="tag-label tag-label-event" data-event-id="${e.id}">${escHtml(e.title)}</span><button class="tag-x tag-x-event" data-event-id="${e.id}" aria-label="Remove ${escHtml(e.title)}">×</button></span>`)
+        .map(e => `<span class="tag event-tag tag-removable" data-event-id="${e.id}">${escHtml(e.title)}<button class="tag-x tag-x-event" data-event-id="${e.id}" aria-label="Remove ${escHtml(e.title)}">×</button></span>`)
         .join('');
     const location = asset.location_name
         ? `<div class="asset-info-section">
@@ -340,27 +318,12 @@ function renderAssetDetail(asset, full) {
         <div style="font-size:0.88rem;color:var(--text-2)">${escHtml(asset.location_name)}</div>
        </div>`
         : '';
-    const notesDisplay = asset.notes
-        ? `<div id="notes-display"><div class="asset-info-notes notes-editable">${escHtml(asset.notes)}</div></div>`
-        : `<button class="tag-add-btn" id="notes-add-btn">+ Add note</button>`;
-    const notes = `
-      <div class="asset-info-section">
+    const notes = asset.notes
+        ? `<div class="asset-info-section">
         <div class="asset-info-label">Notes</div>
-        <div id="notes-section">
-          ${notesDisplay}
-          <div class="notes-editor hidden" id="notes-editor">
-            <textarea class="notes-textarea" id="notes-input" rows="3" placeholder="Add a note…">${escHtml(asset.notes || '')}</textarea>
-            <div class="btn-row" style="margin-top:8px">
-              <button class="btn btn-small btn-primary" id="notes-save">Save</button>
-              <button class="btn btn-small btn-ghost" id="notes-cancel">Cancel</button>
-            </div>
-          </div>
-        </div>
-      </div>`;
-    const precisionOptions = ['exact', 'day', 'month', 'year', 'circa', 'unknown'];
-    const precisionSelect = precisionOptions
-        .map(p => `<option value="${p}"${asset.date_precision === p ? ' selected' : ''}>${precisionLabel(p)}</option>`)
-        .join('');
+        <div class="asset-info-notes">${escHtml(asset.notes)}</div>
+       </div>`
+        : '';
     const hasDate = asset.taken_at && asset.date_precision !== 'unknown';
     const dateDisplay = hasDate
         ? `<div id="date-display">
@@ -371,18 +334,24 @@ function renderAssetDetail(asset, full) {
     <div class="asset-detail">
       <div class="asset-media">${mediaHtml}</div>
       <div class="asset-info">
-        <div class="asset-info-title" id="filename">${escHtml(asset.original_name || asset.filename)}</div>
-        
+        <div class="asset-info-title">${escHtml(asset.original_name || asset.filename)}</div>
 
         <div class="asset-info-section">
           <div class="asset-info-label">Date</div>
           <div id="date-section">
             ${dateDisplay}
             <div class="date-editor hidden" id="date-editor">
-              <select class="date-editor-precision" id="date-precision">${precisionSelect}</select>
-              <div id="date-input-wrap"></div>
-              <div class="btn-row" style="margin-top:8px">
-                <button class="btn btn-small btn-primary" id="date-save">Save</button>
+              <select class="date-editor-select" id="date-precision">
+                <option value="" disabled selected>Type…</option>
+                <option value="exact">Exact timestamp</option>
+                <option value="day">Day</option>
+                <option value="month">Month</option>
+                <option value="year">Year</option>
+                <option value="circa">Approximate decade</option>
+              </select>
+              <div id="date-input-slot"></div>
+              <div class="date-editor-actions">
+                <button class="btn btn-small btn-primary hidden" id="date-save">Save</button>
                 <button class="btn btn-small btn-ghost" id="date-cancel">Cancel</button>
               </div>
             </div>
@@ -424,6 +393,7 @@ function renderAssetDetail(asset, full) {
           ${asset.mime_type ? `${asset.mime_type}<br>` : ''}
         </div>
 
+        <button class="btn-delete-asset" id="btn-delete-asset" data-id="${asset.id}">Delete item</button>
       </div>
     </div>`;
 }
@@ -433,17 +403,87 @@ async function bindOverlayTagging(asset) {
     const dateSection = document.getElementById('date-section');
     const dateEditor = document.getElementById('date-editor');
     const datePrecision = document.getElementById('date-precision');
-    function updateDateInputForPrecision(precision, takenAt) {
-        const wrap = document.getElementById('date-input-wrap');
-        if (wrap) wrap.innerHTML = renderDateInputHtml(precision, takenAt);
+    const dateInputSlot = document.getElementById('date-input-slot');
+    const dateSave = document.getElementById('date-save');
+    const decades = ['1900', '1910', '1920', '1930', '1940', '1950', '1960', '1970', '1980', '1990', '2000', '2010', '2020'];
+    function renderDateInput(precision) {
+        dateSave.classList.remove('hidden');
+        switch (precision) {
+            case 'exact':
+                dateInputSlot.innerHTML = `<input type="datetime-local" class="date-editor-input" id="date-value">`;
+                break;
+            case 'day':
+                dateInputSlot.innerHTML = `<input type="date" class="date-editor-input" id="date-value">`;
+                break;
+            case 'month':
+                dateInputSlot.innerHTML = `<input type="month" class="date-editor-input" id="date-value">`;
+                break;
+            case 'year':
+                dateInputSlot.innerHTML = `<input type="number" class="date-editor-input" id="date-value" min="1800" max="2099" placeholder="e.g. 1987">`;
+                break;
+            case 'circa':
+                dateInputSlot.innerHTML = `<select class="date-editor-input" id="date-value">
+          <option value="" disabled selected>Decade…</option>
+          ${decades.map(d => `<option value="${d}">${d}s</option>`).join('')}
+        </select>`;
+                break;
+            default:
+                dateInputSlot.innerHTML = '';
+                dateSave.classList.add('hidden');
+                return;
+        }
+        // Pre-fill with existing value if precision matches
+        if (asset.taken_at && asset.date_precision === precision) {
+            const el = document.getElementById('date-value');
+            if (precision === 'exact') {
+                // datetime-local expects "YYYY-MM-DDTHH:mm"
+                el.value = asset.taken_at.replace(' ', 'T').substring(0, 16);
+            }
+            else if (precision === 'circa') {
+                // circa stores decade start year like "1960"
+                const decadeStart = asset.taken_at.substring(0, 3) + '0';
+                el.value = decadeStart;
+            }
+            else {
+                el.value = asset.taken_at;
+            }
+        }
+    }
+    function readDateValue() {
+        const el = document.getElementById('date-value');
+        if (!el || !el.value)
+            return null;
+        const precision = datePrecision.value;
+        switch (precision) {
+            case 'exact':
+                // datetime-local gives "YYYY-MM-DDTHH:mm", store as "YYYY-MM-DD HH:mm:00"
+                return el.value.replace('T', ' ') + ':00';
+            case 'day':
+                return el.value; // "YYYY-MM-DD"
+            case 'month':
+                return el.value; // "YYYY-MM"
+            case 'year':
+                return el.value; // "YYYY"
+            case 'circa':
+                return el.value; // decade start year "1960"
+            default:
+                return null;
+        }
     }
     function showEditor() {
         document.getElementById('date-display')?.classList.add('hidden');
         document.getElementById('date-add-btn')?.classList.add('hidden');
         dateEditor.classList.remove('hidden');
-        if (datePrecision.value === 'unknown') datePrecision.value = 'day';
-        updateDateInputForPrecision(datePrecision.value, asset.taken_at || '');
-        (document.getElementById('date-input') || datePrecision).focus();
+        // If editing existing date, pre-select precision and render input
+        if (asset.taken_at && asset.date_precision && asset.date_precision !== 'unknown') {
+            datePrecision.value = asset.date_precision;
+            renderDateInput(asset.date_precision);
+        }
+        else {
+            datePrecision.value = '';
+            dateInputSlot.innerHTML = '';
+            dateSave.classList.add('hidden');
+        }
     }
     function rebuildDateDisplay() {
         const hasDate = asset.taken_at && asset.date_precision !== 'unknown';
@@ -486,7 +526,6 @@ async function bindOverlayTagging(asset) {
                 await api.assets.update(asset.id, { taken_at: null, date_precision: 'unknown' });
                 asset.taken_at = null;
                 asset.date_precision = 'unknown';
-                datePrecision.value = 'unknown';
                 rebuildDateDisplay();
             }
             catch {
@@ -494,25 +533,22 @@ async function bindOverlayTagging(asset) {
             }
         });
     }
+    datePrecision.addEventListener('change', () => {
+        renderDateInput(datePrecision.value);
+    });
     document.getElementById('date-add-btn')?.addEventListener('click', showEditor);
     document.getElementById('date-display')?.addEventListener('click', (e) => {
         if (!e.target.closest('.tag-x'))
             showEditor();
     });
     bindDateRemove();
-    datePrecision.addEventListener('change', () => {
-        updateDateInputForPrecision(datePrecision.value, asset.taken_at || '');
-    });
-    document.getElementById('date-cancel')?.addEventListener('click', () => {
-        datePrecision.value = asset.date_precision || 'unknown';
-        rebuildDateDisplay();
-    });
-    document.getElementById('date-save')?.addEventListener('click', async () => {
+    document.getElementById('date-cancel')?.addEventListener('click', () => rebuildDateDisplay());
+    dateSave.addEventListener('click', async () => {
         const date_precision = datePrecision.value;
-        let taken_at = null;
-        if (date_precision !== 'unknown') {
-            const input = document.getElementById('date-input');
-            taken_at = input?.value?.trim() || null;
+        const taken_at = readDateValue();
+        if (!taken_at && date_precision !== 'unknown') {
+            showToast('Please select a date');
+            return;
         }
         try {
             await api.assets.update(asset.id, { taken_at, date_precision });
@@ -520,7 +556,6 @@ async function bindOverlayTagging(asset) {
             asset.date_precision = date_precision;
             rebuildDateDisplay();
             showToast('Date saved');
-            applyFilters();
         }
         catch {
             alert('Failed to save date.');
@@ -551,8 +586,7 @@ async function bindOverlayTagging(asset) {
     peopleSearch.addEventListener('focus', () => showPeopleDropdown(''));
     peopleSearch.addEventListener('input', () => showPeopleDropdown(peopleSearch.value));
     function showPeopleDropdown(query) {
-        const rawQuery = query.trim();
-        const q = rawQuery.toLowerCase();
+        const q = query.toLowerCase().trim();
         const available = allPeople.filter(p => !taggedPeopleIds.has(p.id));
         const matches = q
             ? available.filter(p => p.name.toLowerCase().includes(q))
@@ -561,7 +595,7 @@ async function bindOverlayTagging(asset) {
             .map(p => `<button class="tag-dropdown-item" data-person-id="${p.id}">${escHtml(p.name)}</button>`)
             .join('');
         if (q && !matches.some(p => p.name.toLowerCase() === q)) {
-            html += `<button class="tag-dropdown-item tag-dropdown-create" data-create-person="${escHtml(rawQuery)}">+ Add "${escHtml(rawQuery)}"</button>`;
+            html += `<button class="tag-dropdown-item tag-dropdown-create" data-create-person="${escHtml(q)}">+ Add "${escHtml(q)}"</button>`;
         }
         if (!html) {
             html = `<div class="tag-dropdown-empty">Type a name to add</div>`;
@@ -595,48 +629,15 @@ async function bindOverlayTagging(asset) {
     async function savePeople() {
         await api.assets.update(asset.id, { person_ids: Array.from(taggedPeopleIds).join(',') });
     }
-    // Remove or edit people chips
+    // Remove people chips
     document.getElementById('people-chips').addEventListener('click', async (e) => {
-        // Remove
-        const xBtn = e.target.closest('.tag-x');
-        if (xBtn?.dataset.personId) {
-            const pid = xBtn.dataset.personId;
-            taggedPeopleIds.delete(pid);
-            await savePeople();
-            xBtn.closest('.tag')?.remove();
+        const btn = e.target.closest('[data-person-id]');
+        if (!btn || !btn.classList.contains('tag-x'))
             return;
-        }
-        // Edit label
-        const label = e.target.closest('.tag-label');
-        if (!label?.dataset.personId) return;
-        const pid = label.dataset.personId;
-        const chip = label.closest('.tag');
-        const currentName = label.textContent;
-        label.style.display = 'none';
-        const input = document.createElement('input');
-        input.className = 'tag-edit-input';
-        input.value = currentName;
-        chip.insertBefore(input, label);
-        input.focus();
-        input.select();
-        async function commitEdit() {
-            const newName = input.value.trim();
-            input.remove();
-            label.style.display = '';
-            if (!newName || newName === currentName) return;
-            try {
-                await api.people.update(pid, { name: newName });
-                label.textContent = newName;
-                const cached = allPeople.find(p => p.id === pid);
-                if (cached) cached.name = newName;
-                invalidatePeopleCache();
-            } catch { label.textContent = currentName; }
-        }
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
-            if (e.key === 'Escape') { input.remove(); label.style.display = ''; }
-        });
-        input.addEventListener('blur', commitEdit);
+        const pid = btn.dataset.personId;
+        taggedPeopleIds.delete(pid);
+        await savePeople();
+        btn.closest('.tag')?.remove();
     });
     // ── Event tagging ──
     const eventSearch = document.getElementById('event-search');
@@ -704,48 +705,15 @@ async function bindOverlayTagging(asset) {
         const ids = Array.from(taggedEventIds);
         await api.assets.update(asset.id, { event_id: ids[0] || '' });
     }
-    // Remove or edit event chips
+    // Remove event chips
     document.getElementById('event-chips').addEventListener('click', async (e) => {
-        // Remove
-        const xBtn = e.target.closest('.tag-x');
-        if (xBtn?.dataset.eventId) {
-            const eid = xBtn.dataset.eventId;
-            taggedEventIds.delete(eid);
-            await saveEvent();
-            xBtn.closest('.tag')?.remove();
+        const btn = e.target.closest('[data-event-id]');
+        if (!btn || !btn.classList.contains('tag-x'))
             return;
-        }
-        // Edit label
-        const label = e.target.closest('.tag-label-event');
-        if (!label?.dataset.eventId) return;
-        const eid = label.dataset.eventId;
-        const chip = label.closest('.tag');
-        const currentTitle = label.textContent;
-        label.style.display = 'none';
-        const input = document.createElement('input');
-        input.className = 'tag-edit-input tag-edit-input-event';
-        input.value = currentTitle;
-        chip.insertBefore(input, label);
-        input.focus();
-        input.select();
-        async function commitEdit() {
-            const newTitle = input.value.trim();
-            input.remove();
-            label.style.display = '';
-            if (!newTitle || newTitle === currentTitle) return;
-            try {
-                await api.events.update(eid, { title: newTitle });
-                label.textContent = newTitle;
-                const cached = allEvents.find(ev => ev.id === eid);
-                if (cached) cached.title = newTitle;
-                invalidateEventsCache();
-            } catch { label.textContent = currentTitle; }
-        }
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') { e.preventDefault(); commitEdit(); }
-            if (e.key === 'Escape') { input.remove(); label.style.display = ''; }
-        });
-        input.addEventListener('blur', commitEdit);
+        const eid = btn.dataset.eventId;
+        taggedEventIds.delete(eid);
+        await saveEvent();
+        btn.closest('.tag')?.remove();
     });
     // Close dropdowns on click outside
     document.addEventListener('click', (e) => {
@@ -755,72 +723,8 @@ async function bindOverlayTagging(asset) {
         if (!target.closest('#event-tag-editor'))
             eventDropdown.classList.add('hidden');
     }, { once: false });
-    bindImageZoom();
-    // ── Notes editing ──
-    const notesSection = document.getElementById('notes-section');
-    const notesEditor = document.getElementById('notes-editor');
-    const notesInput = document.getElementById('notes-input');
-    function showNotesEditor() {
-        document.getElementById('notes-display')?.classList.add('hidden');
-        document.getElementById('notes-add-btn')?.classList.add('hidden');
-        notesEditor.classList.remove('hidden');
-        notesInput.focus();
-    }
-    function rebuildNotesDisplay() {
-        const hasNotes = !!asset.notes;
-        const displayEl = document.getElementById('notes-display');
-        const addBtn = document.getElementById('notes-add-btn');
-        if (hasNotes) {
-            if (displayEl) {
-                displayEl.innerHTML = `<div class="asset-info-notes notes-editable">${escHtml(asset.notes)}</div>`;
-                displayEl.classList.remove('hidden');
-                bindNotesClick();
-            } else {
-                addBtn?.remove();
-                const div = document.createElement('div');
-                div.id = 'notes-display';
-                div.innerHTML = `<div class="asset-info-notes notes-editable">${escHtml(asset.notes)}</div>`;
-                notesSection.insertBefore(div, notesEditor);
-                bindNotesClick();
-            }
-        } else {
-            displayEl?.remove();
-            if (!document.getElementById('notes-add-btn')) {
-                const btn = document.createElement('button');
-                btn.className = 'tag-add-btn';
-                btn.id = 'notes-add-btn';
-                btn.textContent = '+ Add note';
-                btn.addEventListener('click', showNotesEditor);
-                notesSection.insertBefore(btn, notesEditor);
-            } else {
-                addBtn.classList.remove('hidden');
-            }
-        }
-        notesEditor.classList.add('hidden');
-    }
-    function bindNotesClick() {
-        document.getElementById('notes-display')?.addEventListener('click', showNotesEditor);
-    }
-    document.getElementById('notes-add-btn')?.addEventListener('click', showNotesEditor);
-    bindNotesClick();
-    document.getElementById('notes-cancel')?.addEventListener('click', () => {
-        notesInput.value = asset.notes || '';
-        rebuildNotesDisplay();
-    });
-    document.getElementById('notes-save')?.addEventListener('click', async () => {
-        const notes = notesInput.value.trim() || null;
-        try {
-            await api.assets.update(asset.id, { notes });
-            asset.notes = notes;
-            rebuildNotesDisplay();
-            showToast('Note saved');
-        } catch {
-            alert('Failed to save note.');
-        }
-    });
-    // ── Dot menu delete ──
-    document.getElementById('overlay-menu-delete')?.addEventListener('click', async () => {
-        closeMenuDropdown();
+    // ── Delete button ──
+    document.getElementById('btn-delete-asset')?.addEventListener('click', async () => {
         if (!confirm(`Delete "${asset.original_name || asset.filename}"? This cannot be undone.`))
             return;
         try {
@@ -843,114 +747,8 @@ function addChip(type, id, label) {
     const chip = document.createElement('span');
     chip.className = tagClass;
     chip.dataset[type === 'people' ? 'personId' : 'eventId'] = id;
-    const labelClass = type === 'event' ? 'tag-label tag-label-event' : 'tag-label';
-    chip.innerHTML = `<span class="${labelClass}" data-${idAttr}="${id}">${escHtml(label)}</span><button class="${xClass}" data-${idAttr}="${id}" aria-label="Remove ${escHtml(label)}">×</button>`;
+    chip.innerHTML = `${escHtml(label)}<button class="${xClass}" data-${idAttr}="${id}" aria-label="Remove ${escHtml(label)}">×</button>`;
     container.appendChild(chip);
-}
-function bindImageZoom() {
-    const wrap = document.getElementById('zoom-wrap');
-    const img = document.getElementById('zoom-img');
-    const levelEl = document.getElementById('zoom-level');
-    if (!wrap || !img) return;
-    let zoom = 1, tx = 0, ty = 0;
-    function clamp(z, x, y) {
-        if (z <= 1) return { x: 0, y: 0 };
-        const iw = img.offsetWidth * z;
-        const ih = img.offsetHeight * z;
-        const ww = wrap.offsetWidth;
-        const wh = wrap.offsetHeight;
-        const maxX = Math.max(0, (iw - ww) / 2);
-        const maxY = Math.max(0, (ih - wh) / 2);
-        return { x: Math.max(-maxX, Math.min(maxX, x)), y: Math.max(-maxY, Math.min(maxY, y)) };
-    }
-    function apply(animate = true) {
-        if (!animate) img.style.transition = 'none';
-        else img.style.transition = '';
-        img.style.transform = `translate(${tx}px, ${ty}px) scale(${zoom})`;
-        if (levelEl) levelEl.textContent = `${Math.round(zoom * 100)}%`;
-        wrap.classList.toggle('is-zoomed', zoom > 1);
-    }
-    function setZoom(newZoom, ox = 0, oy = 0, animate = true) {
-        newZoom = Math.max(1, Math.min(8, newZoom));
-        tx = ox + (tx - ox) * (newZoom / zoom);
-        ty = oy + (ty - oy) * (newZoom / zoom);
-        zoom = newZoom;
-        const c = clamp(zoom, tx, ty);
-        tx = c.x; ty = c.y;
-        apply(animate);
-    }
-    document.getElementById('zoom-in')?.addEventListener('click', e => { e.stopPropagation(); setZoom(zoom * 1.5); });
-    document.getElementById('zoom-out')?.addEventListener('click', e => { e.stopPropagation(); setZoom(zoom / 1.5); });
-    // Double-click to reset
-    wrap.addEventListener('dblclick', () => { zoom = 1; tx = 0; ty = 0; apply(); });
-    // Scroll to zoom
-    wrap.addEventListener('wheel', e => {
-        e.preventDefault();
-        const r = wrap.getBoundingClientRect();
-        const ox = e.clientX - r.left - r.width / 2;
-        const oy = e.clientY - r.top - r.height / 2;
-        setZoom(zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), ox, oy, false);
-    }, { passive: false });
-    // Drag to pan
-    let dragging = false, dx = 0, dy = 0, startTx = 0, startTy = 0;
-    wrap.addEventListener('mousedown', e => {
-        if (zoom <= 1) return;
-        dragging = true; dx = e.clientX; dy = e.clientY; startTx = tx; startTy = ty;
-        wrap.classList.add('is-grabbing');
-        e.preventDefault();
-    });
-    window.addEventListener('mousemove', e => {
-        if (!dragging) return;
-        tx = startTx + (e.clientX - dx);
-        ty = startTy + (e.clientY - dy);
-        const c = clamp(zoom, tx, ty); tx = c.x; ty = c.y;
-        apply(false);
-    });
-    window.addEventListener('mouseup', () => { dragging = false; wrap.classList.remove('is-grabbing'); });
-    // Pinch to zoom
-    let lastDist = 0, pinchOx = 0, pinchOy = 0;
-    wrap.addEventListener('touchstart', e => {
-        if (e.touches.length !== 2) return;
-        e.preventDefault();
-        lastDist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
-        const r = wrap.getBoundingClientRect();
-        pinchOx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left - r.width / 2;
-        pinchOy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top - r.height / 2;
-    }, { passive: false });
-    wrap.addEventListener('touchmove', e => {
-        if (e.touches.length !== 2 || !lastDist) return;
-        e.preventDefault();
-        const dist = Math.hypot(e.touches[1].clientX - e.touches[0].clientX, e.touches[1].clientY - e.touches[0].clientY);
-        setZoom(zoom * (dist / lastDist), pinchOx, pinchOy, false);
-        lastDist = dist;
-    }, { passive: false });
-    wrap.addEventListener('touchend', () => { lastDist = 0; });
-}
-function renderDateInputHtml(precision, takenAt) {
-    switch (precision) {
-        case 'exact': {
-            let val = '';
-            if (takenAt && takenAt.length >= 10) {
-                val = takenAt.length >= 16 ? takenAt.substring(0, 16) : takenAt.substring(0, 10) + 'T00:00';
-            }
-            return `<input type="datetime-local" class="date-editor-input" id="date-input" value="${escHtml(val)}">`;
-        }
-        case 'day': {
-            const val = takenAt && takenAt.length >= 10 ? takenAt.substring(0, 10) : '';
-            return `<input type="date" class="date-editor-input" id="date-input" value="${escHtml(val)}">`;
-        }
-        case 'month': {
-            const val = takenAt && takenAt.length >= 7 ? takenAt.substring(0, 7) : '';
-            return `<input type="month" class="date-editor-input" id="date-input" value="${escHtml(val)}">`;
-        }
-        case 'year':
-        case 'circa': {
-            const val = takenAt ? takenAt.substring(0, 4) : '';
-            return `<input type="number" class="date-editor-input" id="date-input" min="1800" max="2099" placeholder="Year (e.g. 1987)" value="${escHtml(val)}">`;
-        }
-        default:
-            return `<span style="font-size:0.82rem;color:var(--text-2);display:block;padding:4px 0">No date will be stored.</span>`;
-    }
 }
 function precisionLabel(precision) {
     const labels = {
@@ -1012,27 +810,16 @@ function bindFilters() {
         onRemove(id) { selectedEventIds = selectedEventIds.filter(x => x !== id); renderEventChips(); applyFilters(); },
     });
     // Clear filters button
-    document.getElementById('search-btn').addEventListener('click', applyFilters);
     document.getElementById('clear-filters').addEventListener('click', () => {
         search.value = '';
         from.value = '';
         to.value = '';
         selectedPersonIds = [];
         selectedEventIds = [];
-        selectedPrecision = '';
         renderFilterChips();
         applyFilters();
     });
     // Overlay nav + close
-    document.getElementById('overlay-menu').addEventListener('click', (e) => {
-        e.stopPropagation();
-        document.getElementById('overlay-menu-dropdown').classList.toggle('hidden');
-    });
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('#overlay-menu') && !e.target.closest('#overlay-menu-dropdown')) {
-            closeMenuDropdown();
-        }
-    });
     document.getElementById('overlay-close').addEventListener('click', closeOverlay);
     document.getElementById('overlay-backdrop').addEventListener('click', closeOverlay);
     document.getElementById('overlay-prev').addEventListener('click', () => {
@@ -1124,36 +911,14 @@ function bindChipSelect(cfg) {
         }
     });
 }
-let yearSelectsPopulated = false;
-function populateYearSelects(assets) {
-    if (yearSelectsPopulated) return;
-    const years = [...new Set(
-        assets
-            .map(a => a.taken_at?.substring(0, 4))
-            .filter(y => y && /^\d{4}$/.test(y))
-    )].sort();
-    if (!years.length) return;
-    const fromSel = document.getElementById('filter-from');
-    const toSel = document.getElementById('filter-to');
-    if (!fromSel || !toSel) return;
-    const fromVal = fromSel.value;
-    const toVal = toSel.value;
-    fromSel.innerHTML = '<option value="">From</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
-    toSel.innerHTML = '<option value="">To</option>' + [...years].reverse().map(y => `<option value="${y}">${y}</option>`).join('');
-    if (fromVal) fromSel.value = fromVal;
-    if (toVal) toSel.value = toVal;
-    yearSelectsPopulated = true;
-}
 async function applyFilters() {
     const state = readFilterState();
     const isFiltered = hasActiveFilters(state);
-    document.getElementById('clear-filters')?.classList.toggle('hidden', !isFiltered);
     pushFiltersToURL(state);
     const content = document.getElementById('timeline-content');
     content.innerHTML = `<div class="state-loading">${state.q ? 'Searching…' : 'Loading memories…'}</div>`;
     try {
         filteredAssets = await executeSearch(state);
-        populateYearSelects(filteredAssets);
         await updateFilterStatus(state, filteredAssets.length);
         renderTimeline(filteredAssets, isFiltered);
     }
@@ -1276,8 +1041,7 @@ async function openBulkTagModal() {
     pSearch.addEventListener('focus', () => showBulkPeople(''));
     pSearch.addEventListener('input', () => showBulkPeople(pSearch.value));
     function showBulkPeople(query) {
-        const rawQuery = query.trim();
-        const q = rawQuery.toLowerCase();
+        const q = query.toLowerCase().trim();
         const selected = new Set(bulkPeopleIds);
         const available = allPeople.filter(p => !selected.has(p.id));
         const matches = q ? available.filter(p => p.name.toLowerCase().includes(q)) : available;
@@ -1285,7 +1049,7 @@ async function openBulkTagModal() {
             .map(p => `<button class="tag-dropdown-item" data-pid="${p.id}">${escHtml(p.name)}</button>`)
             .join('');
         if (q && !matches.some(p => p.name.toLowerCase() === q)) {
-            html += `<button class="tag-dropdown-item tag-dropdown-create" data-create-name="${escHtml(rawQuery)}">+ Add "${escHtml(rawQuery)}"</button>`;
+            html += `<button class="tag-dropdown-item tag-dropdown-create" data-create-name="${escHtml(q)}">+ Add "${escHtml(q)}"</button>`;
         }
         if (!html)
             html = `<div class="tag-dropdown-empty">No people found</div>`;
@@ -1437,7 +1201,6 @@ async function openBulkTagModal() {
 export function destroy() {
     selectedAssetIds.clear();
     lastCheckedIndex = null;
-    yearSelectsPopulated = false;
     document.getElementById('selection-bar')?.remove();
 }
 // ─── Util ─────────────────────────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { api, Asset, Person, ArchiveEvent, thumbnailUrl, formatDate, mimeIcon } from './api.js'
+import { api, Asset, Person, ArchiveEvent, thumbnailUrl, originalUrl, formatDate, mimeIcon } from './api.js'
 import {
   getPeople, getEvents, invalidatePeopleCache, invalidateEventsCache,
   readFiltersFromURL, FilterState,
@@ -334,7 +334,7 @@ async function renderOverlay(): Promise<void> {
 
 function renderAssetDetail(asset: Asset, full: Asset | null): string {
   const mime = asset.mime_type || ''
-  const origUrl = asset.local_path ? `/uploads/${asset.local_path}` : null
+  const origUrl = originalUrl(asset)
   const thumbUrl = thumbnailUrl(asset)
 
   let mediaHtml = ''
