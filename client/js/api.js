@@ -52,12 +52,10 @@ export const api = {
     people: {
         list: () => get('/people'),
         create: (data) => post('/people', data),
-        update: (id, data) => patch(`/people/${id}`, data),
     },
     events: {
         list: () => get('/events'),
         create: (data) => post('/events', data),
-        update: (id, data) => patch(`/events/${id}`, data),
     },
     search: (params) => get('/search', params),
     dashboard: {
@@ -69,25 +67,25 @@ let _mediaBaseUrl = '/uploads';
 export async function initMediaBaseUrl() {
     try {
         const cfg = await get('/client-config');
-        if (cfg.mediaBaseUrl) _mediaBaseUrl = cfg.mediaBaseUrl.replace(/\/$/, '');
-    } catch { /* keep default */ }
+        if (cfg.mediaBaseUrl)
+            _mediaBaseUrl = cfg.mediaBaseUrl.replace(/\/$/, '');
+    }
+    catch { /* keep default */ }
 }
 export function mediaUrl(key) {
-    if (!key) return null;
-    // Already a full URL (e.g. R2 CDN link stored in DB)
-    if (key.startsWith('http')) return key;
+    if (!key)
+        return null;
+    if (key.startsWith('http'))
+        return key;
     return `${_mediaBaseUrl}/${key}`;
 }
 // ─── URL helpers ──────────────────────────────────────────────────────────────
 export function thumbnailUrl(asset) {
-    if (!asset.thumbnail_path) return null;
     return mediaUrl(asset.thumbnail_path);
 }
 // Prefer display_path (browser-compatible JPEG for HEIC files); fall back to local_path
 export function originalUrl(asset) {
-    const key = asset.display_path || asset.local_path;
-    if (!key) return null;
-    return mediaUrl(key);
+    return mediaUrl(asset.display_path || asset.local_path);
 }
 export function formatDate(asset) {
     if (!asset.taken_at)

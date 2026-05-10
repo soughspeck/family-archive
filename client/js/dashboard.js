@@ -100,9 +100,6 @@ function renderDashboard(stats) {
     </div>` : ''}
   `;
     document.getElementById('btn-open-upload')?.addEventListener('click', openUploadModal);
-    document.querySelector('.attention-card[data-queue="no_date"]')?.addEventListener('click', () => {
-        window.location.href = '/?precision=unknown#/timeline';
-    });
 }
 function formatRelativeTime(isoString) {
     try {
